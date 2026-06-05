@@ -1,0 +1,26 @@
+import numpy as np
+import utils
+
+# --- Paste your Singular_RHS, simulateTumorGrowth, eulerMethod here ---
+
+if __name__ == "__main__":
+    # Parameters
+    T = 10     # final time
+    n = 1000       # number of time divisions (make sure it matches u_vec length - 1)
+    m = 21        # number of trait divisions
+    beta = 0.3    # scaling constant
+
+    # Load control vector from CSV
+    u_vec = np.loadtxt("u_vec.csv", delimiter=",")   # shape (n+1,)
+
+    print("u_vec length:", len(u_vec))
+    assert len(u_vec) == n + 1, f"u_vec length must be n+1 ({n+1})"
+
+    # Call your function
+    s = utils.Singular_RHS(u_vec, T, n, m, beta)
+
+    s_matlab = np.loadtxt("s.csv", delimiter=",") 
+
+    diff = s - s_matlab
+
+    print("diff:", diff)  
