@@ -1,0 +1,17 @@
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Large/generated training outputs
+runs/
+checkpoints/
+*.pt
+*.pth
+*.npz
+*.log
+
+# Keep curated result summaries/figures under results/
+!results/*.csv
+!results/*.png
