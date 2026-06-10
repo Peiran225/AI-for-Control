@@ -30,6 +30,8 @@ scripts/run_example.sh         # example beta=0.1 commands
 results/method_comparison_summary.csv
 results/method_comparison_log.png
 results/method_comparison_zoom.png
+results/demo_comparison_summary.csv
+results/demo_vs_ours_beta01_clean_log.png
 results/improvement_path.png
 results/transformer_ablation_summary.csv
 results/transformer_ablation.png
@@ -47,6 +49,8 @@ Refined Transformer feedback    0.0187
 ```
 
 The recommended final policy is `Refined Transformer feedback`.
+
+The supplemental demo comparison uses the original demo checkpoint after sigmoid projection to the legal control range.
 
 ## Notes
 
