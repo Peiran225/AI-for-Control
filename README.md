@@ -39,7 +39,7 @@ results/transformer_ablation.png
 
 ## Main Result
 
-For beta=0.1, all-scale best PMP/KKT gap:
+For beta=0.1, mean PMP/KKT gap across initial conditions:
 
 ```text
 Transformer open-loop baseline  5.743
