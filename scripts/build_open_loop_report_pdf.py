@@ -1,4 +1,4 @@
-"""Build HTML/PDF versions of the open-loop u(t) reports."""
+"""Build HTML/PDF versions of the Transformer u(t) reports."""
 
 from __future__ import annotations
 
@@ -204,7 +204,7 @@ def build_one(md_name: str) -> Path:
 
 
 def main() -> None:
-    for name in ["open_loop_ut_reproduction_report.md", "open_loop_ut_reproduction_report_zh.md"]:
+    for name in ["ut_reproduction_report.md", "open_loop_ut_reproduction_report_zh.md"]:
         pdf = build_one(name)
         print(pdf)
 

@@ -1,4 +1,4 @@
-"""Create the N(u) phase plot for the open-loop u(t) report.
+"""Create the N(u) phase plot for the Transformer u(t) report.
 
 This uses Pillow instead of matplotlib so it runs in the lightweight local
 runtime used by Codex.
@@ -169,7 +169,7 @@ def main() -> None:
 
     image = Image.new("RGB", (1800, 720), "white")
     draw = ImageDraw.Draw(image)
-    draw.text((900, 28), "Open-loop Transformer u(t): N(u) phase plots", fill=(10, 10, 10), anchor="ma", font=font(34, bold=True))
+    draw.text((900, 28), "Transformer u(t): N(u) phase plots", fill=(10, 10, 10), anchor="ma", font=font(34, bold=True))
 
     draw_panel(
         draw,

@@ -1,4 +1,4 @@
-"""Rebuild the open-loop u(t) training-loss figure used in the report."""
+"""Rebuild the Transformer u(t) training-loss figure used in the report."""
 
 from __future__ import annotations
 
@@ -80,7 +80,7 @@ def main() -> None:
     ax.set_yscale("log")
     ax.set_ylim(1e-4, 1.6e2)
     ax.set_ylabel("loss")
-    ax.set_title("Open-loop Transformer u(t): training loss trajectories")
+    ax.set_title("Transformer u(t): training loss trajectories")
     ax.grid(True, which="both", alpha=0.25)
     ax.legend(loc="upper right", frameon=True)
 

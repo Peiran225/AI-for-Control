@@ -1,4 +1,4 @@
-"""Build high-resolution DOCX and PDF reports for the open-loop u(t) experiment."""
+"""Build high-resolution DOCX and PDF reports for the Transformer u(t) experiment."""
 
 from __future__ import annotations
 
@@ -161,8 +161,8 @@ def add_title(doc: Document, title: str, subtitle: str) -> None:
 
 def build_en() -> Path:
     doc = setup_doc()
-    add_title(doc, "Open-loop u(t) Experiment Report", "Paper-setting Transformer control trained by PMP/KKT optimality gaps")
-    add_para(doc, "This report focuses on the time-dependent open-loop control policy u_theta(t): [0,T] -> [0,u_max]. The feedback case u(t,N) is intentionally excluded because it has different optimality conditions.")
+    add_title(doc, "Transformer u(t) Experiment Report", "Manuscript time-dependent control trained by PMP/KKT optimality gaps")
+    add_para(doc, "This report reproduces the manuscript's time-dependent Transformer control strategy u_theta(t): [0,T] -> [0,u_max].")
 
     add_heading(doc, "1. Model and Training Objective")
     add_para(doc, "We use the population dynamics and cost from the manuscript:")
@@ -231,8 +231,8 @@ def build_en() -> Path:
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png", width=6.35)
 
     add_heading(doc, "5. Conclusion")
-    add_para(doc, "The requested u(t) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives J approximately 386.70 under the common numerical evaluation. The feedback case u(t,N) is not included here.")
-    out = REPORTS / "open_loop_ut_reproduction_report.docx"
+    add_para(doc, "The requested u(t) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives J approximately 386.70 under the common numerical evaluation. The state-dependent extension u(t,N) is not included in this report because it requires different optimality conditions.")
+    out = REPORTS / "ut_reproduction_report.docx"
     doc.save(out)
     return out
 
@@ -310,7 +310,7 @@ def build_zh() -> Path:
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png", width=6.35)
 
     add_heading(doc, "5. 结论")
-    add_para(doc, "老师要求的 u(t) 复现实验已经完成。使用论文中的 PMP/KKT optimality-gap loss 训练得到的 Transformer 控制轨迹是一个平滑且满足控制约束的 u(t)，训练 optimality gap 从 76.26 降到 0.02637；按同一数值评估方式计算，目标函数值为 J 约 386.70。本报告不包含 feedback case u(t,N)。")
+    add_para(doc, "老师要求的 u(t) 复现实验已经完成。使用论文中的 PMP/KKT optimality-gap loss 训练得到的 Transformer 控制轨迹是一个平滑且满足控制约束的 u(t)，训练 optimality gap 从 76.26 降到 0.02637；按同一数值评估方式计算，目标函数值为 J 约 386.70。本报告不包含状态相关扩展 u(t,N)。")
     out = REPORTS / "open_loop_ut_reproduction_report_zh.docx"
     doc.save(out)
     return out

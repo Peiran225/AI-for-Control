@@ -1,12 +1,12 @@
-# Open-loop \(u(t)\) Experiment Report
+# Transformer \(u(t)\) Experiment Report
 
-This report focuses on the paper setting only: a time-dependent open-loop dosing policy
+This report reproduces the manuscript's time-dependent Transformer control strategy
 
 $$
 u_\theta(t):[0,T]\rightarrow [0,u_{\max}],
 $$
 
-with no feedback term \(u(t,N)\). The goal is to reproduce the manuscript's Transformer \(u(t)\) experiment trained by PMP/KKT optimality gaps.
+trained by PMP/KKT optimality gaps.
 
 ## 1. Model and Training Objective
 
@@ -64,11 +64,11 @@ Here \(q(t)\) is a smooth weight that switches between the singular condition ne
 
 The learned control starts high, transitions to a lower interior/singular-like region, and increases again near the terminal portion. The state trajectory decreases substantially from the initial population.
 
-![Open-loop u(t) and N(t)](../paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png)
+![Transformer u(t) and N(t)](../paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png)
 
 The \(N(u)\) phase plot below shows the same rollout with population plotted directly against the applied control value. Color indicates time.
 
-![Open-loop N(u) phase plot](../paper_runs/open_loop_ut_report/nu_phase_plot_clean.png)
+![N(u) phase plot](../paper_runs/open_loop_ut_report/nu_phase_plot_clean.png)
 
 ## 3. Training Loss Trajectories for PMP/KKT Conditions
 
@@ -116,4 +116,4 @@ Under the same PMP/KKT gap calculation, the Transformer \(u_\theta(t)\) has a mu
 
 The requested \(u(t)\) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives \(J\approx386.70\) under the common numerical evaluation. Compared with the Neural-PMP implementation of related work [3], the Transformer \(u(t)\) has a lower PMP/KKT gap and a slightly lower objective \(J\) on the nominal \(\beta=0.1\) setting.
 
-The feedback case \(u(t,N)\) is intentionally not included here because its optimality conditions are different.
+The state-dependent extension \(u(t,N)\) is not included in this report because it requires different optimality conditions.
