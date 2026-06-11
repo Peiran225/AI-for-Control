@@ -267,7 +267,7 @@ def build_en() -> Path:
     add_equation(doc, r"\dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t)", 1)
     add_equation(doc, r"G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right)", 2)
     add_equation(doc, r"J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt", 3)
-    add_para(doc, "Reported parameters: T=10, m=21, u_max=3, alpha=1, beta=0.1, gamma=20, and N_i(0)=10. The control is represented by a small Transformer encoder over normalized time: u_theta(t_k)=u_max sigma(g_theta(t_k)).")
+    add_para(doc, "Reported parameters: T=10, m=21, u_max=3, alpha=1, beta=0.1, gamma=20, and N_i(0)=10. The control is represented by a small Transformer encoder over normalized time.")
     add_para(doc, "Given u_theta(t), we roll out N_theta(t), solve the costate equation backward, and compute the switching function")
     add_equation(doc, r"\psi(t)=H_u(N,\lambda,u)=\gamma-\sum_i\phi_i\lambda_i(t)N_i(t)", 4)
     add_table(
@@ -290,11 +290,11 @@ def build_en() -> Path:
         caption="Figure 1. Learned Transformer control u(t), population trajectory N(t), switching function psi(t), and singular weight q(t).",
         width=6.35,
     )
-    add_para(doc, "The N(u) phase plot shows the same rollout as state-control pairs (u(t_k), N_i(t_k)). Each curve corresponds to one state component N_i; no mean or total population aggregation is used.")
+    add_para(doc, "The N(u) phase plot shows the same rollout by plotting each state component directly against the applied control. No mean or total population aggregation is used.")
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
-        caption="Figure 2. N(u) phase plot using the state-control points (u(t_k), N_i(t_k)) for all state components; colors distinguish state index i, not time.",
+        caption="Figure 2. N(u) phase plot: each state component is plotted against the applied control; colors distinguish the state index, not time.",
         width=6.75,
     )
 
@@ -381,7 +381,7 @@ def build_zh() -> Path:
     add_equation(doc, r"\dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t)", 1)
     add_equation(doc, r"G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right)", 2)
     add_equation(doc, r"J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt", 3)
-    add_para(doc, "本次参数为 T=10，m=21，u_max=3，alpha=1，beta=0.1，gamma=20，初始条件为 N_i(0)=10。控制函数由小型 Transformer encoder 表示：u_theta(t_k)=u_max sigma(g_theta(t_k))。")
+    add_para(doc, "本次参数为 T=10，m=21，u_max=3，alpha=1，beta=0.1，gamma=20，初始条件为 N_i(0)=10。控制函数由小型 Transformer encoder 在归一化时间上表示。")
     add_para(doc, "给定 u_theta(t) 后，先正向求解得到 N_theta(t)，再反向求解 costate，并计算 switching function：")
     add_equation(doc, r"\psi(t)=H_u(N,\lambda,u)=\gamma-\sum_i\phi_i\lambda_i(t)N_i(t)", 4)
     add_table(
@@ -404,11 +404,11 @@ def build_zh() -> Path:
         caption="图 1. 学到的 Transformer 控制 u(t)、状态轨迹 N(t)、switching function psi(t) 和 singular weight q(t)。",
         width=6.35,
     )
-    add_para(doc, "下面的 N(u) 图将同一次 rollout 画成状态-控制点 (u(t_k), N_i(t_k))。每条曲线对应一个状态分量 N_i；这里不再使用 mean population 或 total population。")
+    add_para(doc, "下面的 N(u) 图将同一次 rollout 中的每个状态分量直接画在对应控制值上。这里不再使用 mean population 或 total population。")
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
-        caption="图 2. N(u) 相图：对所有状态分量画出状态-控制点 (u(t_k), N_i(t_k))；颜色表示状态编号 i，而不是时间。",
+        caption="图 2. N(u) 相图：每个状态分量直接画在对应控制值上；颜色表示状态编号，而不是时间。",
         width=6.75,
     )
 

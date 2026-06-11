@@ -29,11 +29,7 @@ J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt.
 \tag{3}
 $$
 
-For the reported run, \(T=10\), \(m=21\), \(u_{\max}=3\), \(\alpha=1\), \(\beta=0.1\), \(\gamma=20\), and \(N_i(0)=10\). The control is represented by a small Transformer encoder over normalized time, with
-
-$$
-u_\theta(t_k)=u_{\max}\sigma(g_\theta(t_k)).
-$$
+For the reported run, \(T=10\), \(m=21\), \(u_{\max}=3\), \(\alpha=1\), \(\beta=0.1\), \(\gamma=20\), and \(N_i(0)=10\). The control is represented by a small Transformer encoder over normalized time.
 
 The training loss follows the manuscript's PMP/KKT optimality-gap formulation. After rolling out \(N_\theta(t)\), we solve the costate equation backward and define
 
@@ -72,11 +68,11 @@ The learned control starts high, transitions to a lower interior/singular-like r
 
 *Figure 1. Learned Transformer control \(u(t)\), population trajectory \(N(t)\), switching function \(\psi(t)\), and singular weight \(q(t)\).*
 
-The \(N(u)\) phase plot below shows the same rollout as state-control pairs \((u(t_k), N_i(t_k))\). Each curve corresponds to one state component \(N_i\); no mean or total population aggregation is used.
+The \(N(u)\) phase plot below shows the same rollout by plotting each state component directly against the applied control. No mean or total population aggregation is used.
 
 ![N(u) phase plot](../paper_runs/open_loop_ut_report/nu_phase_plot_clean.png)
 
-*Figure 2. \(N(u)\) phase plot using the state-control points \((u(t_k), N_i(t_k))\) for all state components; colors distinguish state index \(i\), not time.*
+*Figure 2. \(N(u)\) phase plot: each state component is plotted against the applied control; colors distinguish the state index, not time.*
 
 ## 3. Training Loss Trajectories for PMP/KKT Conditions
 
