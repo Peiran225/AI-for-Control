@@ -284,9 +284,19 @@ def build_en() -> Path:
 
     add_heading(doc, "2. Learned u(t), N(t), and N(u)")
     add_para(doc, "The learned control starts high, transitions to a lower interior/singular-like region, and increases again near the terminal portion.")
-    add_figure(doc, "paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png", width=6.35)
+    add_figure(
+        doc,
+        "paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png",
+        caption="Figure 1. Learned Transformer control u(t), population trajectory N(t), switching function psi(t), and singular weight q(t).",
+        width=6.35,
+    )
     add_para(doc, "The N(u) phase plot shows the same rollout as state-control pairs (u(t_k), N_i(t_k)). Each curve corresponds to one state component N_i; no mean or total population aggregation is used.")
-    add_figure(doc, "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png", width=6.75)
+    add_figure(
+        doc,
+        "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
+        caption="Figure 2. N(u) phase plot using the state-control points (u(t_k), N_i(t_k)) for all state components.",
+        width=6.75,
+    )
 
     doc.add_page_break()
     add_heading(doc, "3. Training Loss Trajectories for PMP/KKT Conditions")
@@ -305,9 +315,19 @@ def build_en() -> Path:
         [3.2, 2.0],
         font_size=9.2,
     )
-    add_figure(doc, "paper_runs/open_loop_ut_report/training_loss_trajectory_clean.png", width=6.35)
+    add_figure(
+        doc,
+        "paper_runs/open_loop_ut_report/training_loss_trajectory_clean.png",
+        caption="Figure 3. Training trajectories of the total PMP/KKT optimality gap and its singular and non-singular components.",
+        width=6.35,
+    )
     add_para(doc, "The final pointwise diagnostic below uses a smooth weight q(t) to separate the two regimes: near psi(t)=0 it emphasizes the singular-condition error; away from psi(t)=0 it emphasizes the boundary KKT error.")
-    add_figure(doc, "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png", width=6.35)
+    add_figure(
+        doc,
+        "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png",
+        caption="Figure 4. Pointwise singular-condition error and boundary KKT error along the final learned trajectory.",
+        width=6.35,
+    )
 
     add_heading(doc, "4. Comparison With Gu et al. [3]")
     add_para(doc, "Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part only: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. Therefore this row is a controller-stage baseline following [3], not a full reproduction of the data-driven system-identification pipeline in [3].")
@@ -325,9 +345,24 @@ def build_en() -> Path:
     )
     add_note(doc, "* The J values in this table are computed after fixing u(t), reintegrating N(t) with a finer-step fourth-order Runge-Kutta method, and then applying the manuscript objective definition. This is only to use the same numerical integration accuracy across methods.")
     add_para(doc, "Under the same PMP/KKT gap calculation, the Transformer u_theta(t) has a much smaller gap than this Neural-PMP controller-stage baseline. When J is recomputed with the same numerical evaluator, the Transformer also has a slightly lower objective value in this run.")
-    add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png", width=6.35)
-    add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png", width=6.35)
-    add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png", width=6.35)
+    add_figure(
+        doc,
+        "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png",
+        caption="Figure 5. Neural-PMP controller-stage baseline [3]: control sequence and resulting state trajectory.",
+        width=6.35,
+    )
+    add_figure(
+        doc,
+        "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png",
+        caption="Figure 6. Neural-PMP controller-stage baseline [3]: selected-run training trajectories.",
+        width=6.35,
+    )
+    add_figure(
+        doc,
+        "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png",
+        caption="Figure 7. Objective J gap relative to the direct-cost reference under the common numerical evaluation.",
+        width=6.35,
+    )
 
     add_heading(doc, "5. Conclusion")
     add_para(doc, "The requested u(t) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives J approximately 386.70 under the common numerical evaluation. The state-dependent extension u(t,N) is not included in this report because it requires different optimality conditions.")
@@ -363,9 +398,19 @@ def build_zh() -> Path:
 
     add_heading(doc, "2. 学到的 u(t)、N(t) 和 N(u)")
     add_para(doc, "学到的开环控制在开始阶段较高，中间阶段下降到接近 singular control 的内部取值，末端附近再次升高。")
-    add_figure(doc, "paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png", width=6.35)
+    add_figure(
+        doc,
+        "paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png",
+        caption="图 1. 学到的 Transformer 控制 u(t)、状态轨迹 N(t)、switching function psi(t) 和 singular weight q(t)。",
+        width=6.35,
+    )
     add_para(doc, "下面的 N(u) 图将同一次 rollout 画成状态-控制点 (u(t_k), N_i(t_k))。每条曲线对应一个状态分量 N_i；这里不再使用 mean population 或 total population。")
-    add_figure(doc, "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png", width=6.75)
+    add_figure(
+        doc,
+        "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
+        caption="图 2. N(u) 相图：对所有状态分量画出状态-控制点 (u(t_k), N_i(t_k))。",
+        width=6.75,
+    )
 
     doc.add_page_break()
     add_heading(doc, "3. 各 PMP/KKT 最优性条件的 training loss trajectory")
@@ -385,9 +430,19 @@ def build_zh() -> Path:
         font_size=9.2,
     )
     add_para(doc, "训练曲线将论文中的两类最优性条件分开展示：当 psi(t) 接近 0 时，对应 singular condition；当 psi(t) 不为 0 时，对应 Hamiltonian 在控制边界 0 或 u_max 上取最小的 non-singular condition。结果显示，singular-condition gap 较小，主要剩余误差来自 non-singular Hamiltonian-minimization condition，尤其是控制切换附近。")
-    add_figure(doc, "paper_runs/open_loop_ut_report/training_loss_trajectory_clean.png", width=6.35)
+    add_figure(
+        doc,
+        "paper_runs/open_loop_ut_report/training_loss_trajectory_clean.png",
+        caption="图 3. 总 PMP/KKT optimality gap 以及 singular、non-singular 两个组成部分的训练轨迹。",
+        width=6.35,
+    )
     add_para(doc, "下面的逐点诊断图使用平滑权重 q(t) 区分两类区域：当 psi(t) 接近 0 时，主要看 singular-condition error；当 psi(t) 远离 0 时，主要看边界 KKT error。")
-    add_figure(doc, "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png", width=6.35)
+    add_figure(
+        doc,
+        "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png",
+        caption="图 4. 最终学到的轨迹上的逐点 singular-condition error 和边界 KKT error。",
+        width=6.35,
+    )
 
     add_heading(doc, "4. 与 Gu et al. [3] 的比较")
     add_para(doc, "这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文的 Neural-PMP 方法包含两部分：先从数据学习可微动力学模型，再用 PMP-gradient 更新控制序列。由于本报告的模型动力学已知，我们比较的是第二部分的 oracle-dynamics 版本：正向求解状态、反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。因此这一行是遵循 [3] 的 controller-stage baseline，不是完整复现 [3] 的数据驱动系统辨识流程。")
@@ -405,9 +460,24 @@ def build_zh() -> Path:
     )
     add_note(doc, "* 表中的 J 都是在控制 u(t) 固定后，用更细时间步长的四阶 Runge-Kutta 方法重新求解状态 N(t)，再按论文目标函数定义计算得到。这样做只是为了让不同方法的数值比较使用同一个积分精度。")
     add_para(doc, "在同一个 PMP/KKT gap 计算方式下，Transformer u_theta(t) 的 gap 明显小于这个 Neural-PMP controller-stage baseline；按同一数值评估方式重新计算目标函数 J 时，本次实验中 Transformer 的 J 也略低。")
-    add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png", width=6.35)
-    add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png", width=6.35)
-    add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png", width=6.35)
+    add_figure(
+        doc,
+        "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png",
+        caption="图 5. Neural-PMP controller-stage baseline [3] 的控制序列和对应状态轨迹。",
+        width=6.35,
+    )
+    add_figure(
+        doc,
+        "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png",
+        caption="图 6. Neural-PMP controller-stage baseline [3] 的 selected-run 训练轨迹。",
+        width=6.35,
+    )
+    add_figure(
+        doc,
+        "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png",
+        caption="图 7. 在同一数值评估方式下，相对于 direct-cost reference 的目标函数 J 差值。",
+        width=6.35,
+    )
 
     add_heading(doc, "5. 结论")
     add_para(doc, "老师要求的 u(t) 复现实验已经完成。使用论文中的 PMP/KKT optimality-gap loss 训练得到的 Transformer 控制轨迹是一个平滑且满足控制约束的 u(t)，训练 optimality gap 从 76.26 降到 0.02637；按同一数值评估方式计算，目标函数值为 J 约 386.70。本报告不包含状态相关扩展 u(t,N)。")

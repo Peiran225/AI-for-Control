@@ -70,9 +70,13 @@ The learned control starts high, transitions to a lower interior/singular-like r
 
 ![Transformer u(t) and N(t)](../paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png)
 
+*Figure 1. Learned Transformer control \(u(t)\), population trajectory \(N(t)\), switching function \(\psi(t)\), and singular weight \(q(t)\).*
+
 The \(N(u)\) phase plot below shows the same rollout as state-control pairs \((u(t_k), N_i(t_k))\). Each curve corresponds to one state component \(N_i\); no mean or total population aggregation is used.
 
 ![N(u) phase plot](../paper_runs/open_loop_ut_report/nu_phase_plot_clean.png)
+
+*Figure 2. \(N(u)\) phase plot using the state-control points \((u(t_k), N_i(t_k))\) for all state components.*
 
 ## 3. Training Loss Trajectories for PMP/KKT Conditions
 
@@ -91,9 +95,13 @@ The trajectory separates the two optimality conditions in the manuscript. When \
 
 ![Training loss trajectories](../paper_runs/open_loop_ut_report/training_loss_trajectory_clean.png)
 
+*Figure 3. Training trajectories of the total PMP/KKT optimality gap and its singular and non-singular components.*
+
 The next plot shows pointwise PMP/KKT diagnostics along the final learned trajectory. The smooth weight \(q(t)\) separates the two regimes: near \(\psi(t)=0\), the plot emphasizes the singular-condition error; away from \(\psi(t)=0\), it emphasizes the boundary KKT error.
 
 ![Pointwise PMP/KKT components](../paper_runs/open_loop_ut_report/pmp_condition_components_clean.png)
+
+*Figure 4. Pointwise singular-condition error and boundary KKT error along the final learned trajectory.*
 
 ## 4. Comparison With Gu et al. [3]
 
@@ -112,12 +120,18 @@ Under the same PMP/KKT gap calculation, the Transformer \(u_\theta(t)\) has a mu
 
 ![Neural-PMP control and state rollout](../paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png)
 
+*Figure 5. Neural-PMP controller-stage baseline [3]: control sequence and resulting state trajectory.*
+
 ![Neural-PMP training curve](../paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png)
+
+*Figure 6. Neural-PMP controller-stage baseline [3]: selected-run training trajectories.*
 
 ![Reference-cost comparison](../paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png)
 
+*Figure 7. Objective \(J\) gap relative to the direct-cost reference under the common numerical evaluation.*
+
 ## 5. Conclusion
 
-The requested \(u(t)\) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives \(J\approx386.70\) under the common numerical evaluation. Compared with the Neural-PMP implementation of Gu et al. [3], the Transformer \(u(t)\) has a lower PMP/KKT gap and a slightly lower objective \(J\) on the nominal \(\beta=0.1\) setting.
+The requested \(u(t)\) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives \(J\approx386.70\) under the common numerical evaluation.
 
 The state-dependent extension \(u(t,N)\) is not included in this report because it requires different optimality conditions.
