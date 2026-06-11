@@ -61,7 +61,7 @@ def main() -> None:
     ax.text(
         0.5,
         1.01,
-        r"Each curve plots one state component against the applied control; color denotes the state index $i$, not time.",
+        r"Each curve plots one state component against the applied control; color denotes the state index $i$.",
         transform=ax.transAxes,
         ha="center",
         va="bottom",

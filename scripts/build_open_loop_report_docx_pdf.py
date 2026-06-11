@@ -290,11 +290,11 @@ def build_en() -> Path:
         caption="Figure 1. Learned Transformer control u(t), population trajectory N(t), switching function psi(t), and singular weight q(t).",
         width=6.35,
     )
-    add_para(doc, "The N(u) phase plot shows the same rollout by plotting each state component directly against the applied control. No mean or total population aggregation is used.")
+    add_para(doc, "The N(u) phase plot shows the same rollout by plotting each state component directly against the applied control.")
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
-        caption="Figure 2. N(u) phase plot: each state component is plotted against the applied control; colors distinguish the state index, not time.",
+        caption="Figure 2. N(u) phase plot: each state component is plotted against the applied control; colors distinguish the state index.",
         width=6.75,
     )
 
@@ -330,7 +330,7 @@ def build_en() -> Path:
     )
 
     add_heading(doc, "4. Comparison With Gu et al. [3]")
-    add_para(doc, "Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part only: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. Therefore this row is a controller-stage baseline following [3], not a full reproduction of the data-driven system-identification pipeline in [3].")
+    add_para(doc, "Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. This row should therefore be read as a controller-stage baseline following [3].")
     add_table(
         doc,
         ["method", "control update / training criterion", "PMP/KKT gap", "objective J*", "note"],
@@ -338,7 +338,7 @@ def build_en() -> Path:
             ["Transformer u(t)", "paper PMP/KKT optimality-gap loss", "0.0523", "386.70", "main u(t) reproduction"],
             ["Neural-PMP controller-stage [3]", "Hamiltonian-gradient update with known dynamics", "7.47", "387.02", "related-work comparison"],
             ["direct grid cost", "minimize discretized J", "0.805", "386.47", "reference only"],
-            ["constant u=1.5", "no training", "76.89", "400.40", "scale check"],
+            ["constant u=1.5", "fixed control", "76.89", "400.40", "scale check"],
         ],
         [1.35, 2.3, 0.85, 0.85, 1.15],
         font_size=8.0,
@@ -365,7 +365,7 @@ def build_en() -> Path:
     )
 
     add_heading(doc, "5. Conclusion")
-    add_para(doc, "The requested u(t) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives J approximately 386.70 under the common numerical evaluation. The state-dependent extension u(t,N) is not included in this report because it requires different optimality conditions.")
+    add_para(doc, "The requested u(t) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives J approximately 386.70 under the common numerical evaluation. The state-dependent extension u(t,N) is left for separate work because it requires different optimality conditions.")
     out = REPORTS / "ut_reproduction_report.docx"
     doc.save(out)
     return out
@@ -404,11 +404,11 @@ def build_zh() -> Path:
         caption="图 1. 学到的 Transformer 控制 u(t)、状态轨迹 N(t)、switching function psi(t) 和 singular weight q(t)。",
         width=6.35,
     )
-    add_para(doc, "下面的 N(u) 图将同一次 rollout 中的每个状态分量直接画在对应控制值上。这里不再使用 mean population 或 total population。")
+    add_para(doc, "下面的 N(u) 图将同一次 rollout 中的每个状态分量直接画在对应控制值上。")
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
-        caption="图 2. N(u) 相图：每个状态分量直接画在对应控制值上；颜色表示状态编号，而不是时间。",
+        caption="图 2. N(u) 相图：每个状态分量直接画在对应控制值上；颜色表示状态编号。",
         width=6.75,
     )
 
@@ -445,7 +445,7 @@ def build_zh() -> Path:
     )
 
     add_heading(doc, "4. 与 Gu et al. [3] 的比较")
-    add_para(doc, "这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文的 Neural-PMP 方法包含两部分：先从数据学习可微动力学模型，再用 PMP-gradient 更新控制序列。由于本报告的模型动力学已知，我们比较的是第二部分的 oracle-dynamics 版本：正向求解状态、反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。因此这一行是遵循 [3] 的 controller-stage baseline，不是完整复现 [3] 的数据驱动系统辨识流程。")
+    add_para(doc, "这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文的 Neural-PMP 方法包含两部分：先从数据学习可微动力学模型，再用 PMP-gradient 更新控制序列。由于本报告的模型动力学已知，我们比较的是第二部分的 oracle-dynamics 版本：正向求解状态、反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。因此这一行可理解为遵循 [3] 的 controller-stage baseline。")
     add_table(
         doc,
         ["方法", "训练/更新准则", "PMP/KKT gap", "目标函数 J*", "说明"],

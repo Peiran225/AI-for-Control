@@ -68,11 +68,11 @@ The learned control starts high, transitions to a lower interior/singular-like r
 
 *Figure 1. Learned Transformer control \(u(t)\), population trajectory \(N(t)\), switching function \(\psi(t)\), and singular weight \(q(t)\).*
 
-The \(N(u)\) phase plot below shows the same rollout by plotting each state component directly against the applied control. No mean or total population aggregation is used.
+The \(N(u)\) phase plot below shows the same rollout by plotting each state component directly against the applied control.
 
 ![N(u) phase plot](../paper_runs/open_loop_ut_report/nu_phase_plot_clean.png)
 
-*Figure 2. \(N(u)\) phase plot: each state component is plotted against the applied control; colors distinguish the state index, not time.*
+*Figure 2. \(N(u)\) phase plot: each state component is plotted against the applied control; colors distinguish the state index.*
 
 ## 3. Training Loss Trajectories for PMP/KKT Conditions
 
@@ -101,14 +101,14 @@ The next plot shows pointwise PMP/KKT diagnostics along the final learned trajec
 
 ## 4. Comparison With Gu et al. [3]
 
-Here [3] refers to Gu, Xiong, and Chen, *Pontryagin Optimal Control via Neural Networks* (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part only: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. Therefore this row is a controller-stage baseline following [3], not a full reproduction of the data-driven system-identification pipeline in [3].
+Here [3] refers to Gu, Xiong, and Chen, *Pontryagin Optimal Control via Neural Networks* (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. This row should therefore be read as a controller-stage baseline following [3].
 
 | method | control update / training criterion | PMP/KKT gap | objective \(J\)[^1] | note |
 |---|---|---:|---:|---|
 | Transformer \(u_\theta(t)\) | paper PMP/KKT optimality-gap loss | 0.0523 | 386.70 | main \(u(t)\) reproduction |
 | Neural-PMP controller-stage baseline [3] | Hamiltonian-gradient update of control sequence with known dynamics | 7.47 | 387.02 | related-work comparison |
 | direct grid cost minimization | minimize discretized \(J\) | 0.805 | 386.47 | reference only |
-| constant \(u=1.5\) | no training | 76.89 | 400.40 | scale check |
+| constant \(u=1.5\) | fixed control | 76.89 | 400.40 | scale check |
 
 Under the same PMP/KKT gap calculation, the Transformer \(u_\theta(t)\) has a much smaller gap than this Neural-PMP controller-stage baseline. When \(J\) is recomputed with the same numerical evaluator, the Transformer also has a slightly lower objective value in this run.
 
@@ -130,4 +130,4 @@ Under the same PMP/KKT gap calculation, the Transformer \(u_\theta(t)\) has a mu
 
 The requested \(u(t)\) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives \(J\approx386.70\) under the common numerical evaluation.
 
-The state-dependent extension \(u(t,N)\) is not included in this report because it requires different optimality conditions.
+The state-dependent extension \(u(t,N)\) is left for separate work because it requires different optimality conditions.
