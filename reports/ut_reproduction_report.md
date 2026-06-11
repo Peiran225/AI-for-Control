@@ -97,16 +97,16 @@ The next plot shows pointwise PMP/KKT diagnostics along the final learned trajec
 
 ## 4. Comparison With Gu et al. [3]
 
-Here [3] refers to Gu, Xiong, and Chen, *Pontryagin Optimal Control via Neural Networks* (arXiv:2212.14566). Their Neural-PMP / PMP-gradient method also follows a Pontryagin-style procedure: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. For comparison on the same model and parameters, we implemented the corresponding control-update step from [3].
+Here [3] refers to Gu, Xiong, and Chen, *Pontryagin Optimal Control via Neural Networks* (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part only: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. Therefore this row is a controller-stage baseline following [3], not a full reproduction of the data-driven system-identification pipeline in [3].
 
 | method | control update / training criterion | PMP/KKT gap | objective \(J\)[^1] | note |
 |---|---|---:|---:|---|
 | Transformer \(u_\theta(t)\) | paper PMP/KKT optimality-gap loss | 0.0523 | 386.70 | main \(u(t)\) reproduction |
-| Neural-PMP implementation of [3] | Hamiltonian-gradient update of control sequence | 7.47 | 387.02 | related-work comparison |
+| Neural-PMP controller-stage baseline [3] | Hamiltonian-gradient update of control sequence with known dynamics | 7.47 | 387.02 | related-work comparison |
 | direct grid cost minimization | minimize discretized \(J\) | 0.805 | 386.47 | reference only |
 | constant \(u=1.5\) | no training | 76.89 | 400.40 | scale check |
 
-Under the same PMP/KKT gap calculation, the Transformer \(u_\theta(t)\) has a much smaller gap than the Neural-PMP implementation of [3]. When \(J\) is recomputed with the same numerical evaluator, the Transformer also has a slightly lower objective value in this run.
+Under the same PMP/KKT gap calculation, the Transformer \(u_\theta(t)\) has a much smaller gap than this Neural-PMP controller-stage baseline. When \(J\) is recomputed with the same numerical evaluator, the Transformer also has a slightly lower objective value in this run.
 
 [^1]: The \(J\) values in this table are computed after fixing \(u(t)\), reintegrating \(N(t)\) with a finer-step fourth-order Runge-Kutta method, and then applying the manuscript objective definition. This is only to use the same numerical integration accuracy across methods.
 

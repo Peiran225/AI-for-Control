@@ -310,13 +310,13 @@ def build_en() -> Path:
     add_figure(doc, "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png", width=6.35)
 
     add_heading(doc, "4. Comparison With Gu et al. [3]")
-    add_para(doc, "Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP / PMP-gradient method also follows a Pontryagin-style procedure: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. For comparison on the same model and parameters, we implemented the corresponding control-update step from [3].")
+    add_para(doc, "Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part only: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. Therefore this row is a controller-stage baseline following [3], not a full reproduction of the data-driven system-identification pipeline in [3].")
     add_table(
         doc,
         ["method", "control update / training criterion", "PMP/KKT gap", "objective J*", "note"],
         [
             ["Transformer u(t)", "paper PMP/KKT optimality-gap loss", "0.0523", "386.70", "main u(t) reproduction"],
-            ["Neural-PMP [3]", "Hamiltonian-gradient update of control sequence", "7.47", "387.02", "related-work comparison"],
+            ["Neural-PMP controller-stage [3]", "Hamiltonian-gradient update with known dynamics", "7.47", "387.02", "related-work comparison"],
             ["direct grid cost", "minimize discretized J", "0.805", "386.47", "reference only"],
             ["constant u=1.5", "no training", "76.89", "400.40", "scale check"],
         ],
@@ -324,7 +324,7 @@ def build_en() -> Path:
         font_size=8.0,
     )
     add_note(doc, "* The J values in this table are computed after fixing u(t), reintegrating N(t) with a finer-step fourth-order Runge-Kutta method, and then applying the manuscript objective definition. This is only to use the same numerical integration accuracy across methods.")
-    add_para(doc, "Under the same PMP/KKT gap calculation, the Transformer u_theta(t) has a much smaller gap than the Neural-PMP implementation of Gu et al. [3]. When J is recomputed with the same numerical evaluator, the Transformer also has a slightly lower objective value in this run.")
+    add_para(doc, "Under the same PMP/KKT gap calculation, the Transformer u_theta(t) has a much smaller gap than this Neural-PMP controller-stage baseline. When J is recomputed with the same numerical evaluator, the Transformer also has a slightly lower objective value in this run.")
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png", width=6.35)
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png", width=6.35)
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png", width=6.35)
@@ -390,13 +390,13 @@ def build_zh() -> Path:
     add_figure(doc, "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png", width=6.35)
 
     add_heading(doc, "4. 与 Gu et al. [3] 的比较")
-    add_para(doc, "这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文的 Neural-PMP / PMP-gradient 方法也基于 Pontryagin 思路：先正向求解状态，再反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。为了在同一个模型和参数下比较，我们实现了 [3] 中对应的控制更新步骤。")
+    add_para(doc, "这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文的 Neural-PMP 方法包含两部分：先从数据学习可微动力学模型，再用 PMP-gradient 更新控制序列。由于本报告的模型动力学已知，我们比较的是第二部分的 oracle-dynamics 版本：正向求解状态、反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。因此这一行是遵循 [3] 的 controller-stage baseline，不是完整复现 [3] 的数据驱动系统辨识流程。")
     add_table(
         doc,
         ["方法", "训练/更新准则", "PMP/KKT gap", "目标函数 J*", "说明"],
         [
             ["Transformer u(t)", "论文中的 PMP/KKT optimality-gap loss", "0.0523", "386.70", "本报告主实验"],
-            ["Neural-PMP [3]", "Hamiltonian-gradient 更新离散控制序列", "7.47", "387.02", "related work 对比"],
+            ["Neural-PMP controller-stage [3]", "已知动力学下的 Hamiltonian-gradient 控制更新", "7.47", "387.02", "related work 对比"],
             ["direct grid cost", "直接最小化离散 J", "0.805", "386.47", "仅作参考"],
             ["constant u=1.5", "无训练", "76.89", "400.40", "尺度参考"],
         ],
@@ -404,7 +404,7 @@ def build_zh() -> Path:
         font_size=8.0,
     )
     add_note(doc, "* 表中的 J 都是在控制 u(t) 固定后，用更细时间步长的四阶 Runge-Kutta 方法重新求解状态 N(t)，再按论文目标函数定义计算得到。这样做只是为了让不同方法的数值比较使用同一个积分精度。")
-    add_para(doc, "在同一个 PMP/KKT gap 计算方式下，Transformer u_theta(t) 的 gap 明显小于 Gu et al. [3] 的 Neural-PMP 实现；按同一数值评估方式重新计算目标函数 J 时，本次实验中 Transformer 的 J 也略低。")
+    add_para(doc, "在同一个 PMP/KKT gap 计算方式下，Transformer u_theta(t) 的 gap 明显小于这个 Neural-PMP controller-stage baseline；按同一数值评估方式重新计算目标函数 J 时，本次实验中 Transformer 的 J 也略低。")
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png", width=6.35)
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png", width=6.35)
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png", width=6.35)

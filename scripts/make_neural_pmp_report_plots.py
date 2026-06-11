@@ -65,13 +65,13 @@ def main() -> None:
         gridspec_kw={"height_ratios": [0.85, 1.15], "hspace": 0.14},
     )
     ax = axes[0]
-    ax.step(t, u, where="post", color="#4c78a8", lw=2.2, label=r"Neural-PMP $u(t)$")
+    ax.step(t, u, where="post", color="#4c78a8", lw=2.2, label=r"Neural-PMP controller-stage $u(t)$")
     ax.set_ylabel(r"control $u(t)$")
     ax.set_ylim(-0.12, 3.12)
     ax.set_yticks([0, 1.5, 3.0])
     ax.grid(True, alpha=0.25)
     ax.legend(loc="upper right", frameon=True)
-    ax.set_title(r"Neural-PMP [3] implementation: control and state trajectory")
+    ax.set_title(r"Neural-PMP controller-stage baseline [3]: control and state trajectory")
 
     ax = axes[1]
     n_min = N.min(axis=1)
@@ -110,7 +110,7 @@ def main() -> None:
     axes[1].set_yscale("log")
     axes[1].grid(True, which="both", alpha=0.25)
 
-    fig.suptitle("Neural-PMP [3] implementation: selected-run training trajectories", y=1.03, fontsize=19)
+    fig.suptitle("Neural-PMP controller-stage baseline [3]: selected-run training trajectories", y=1.03, fontsize=18)
     fig.tight_layout()
 
     out = OUT_DIR / "neural_pmp_training_curve.png"

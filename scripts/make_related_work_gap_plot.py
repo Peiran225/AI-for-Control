@@ -22,7 +22,7 @@ def main() -> None:
     values = {
         "direct\ncost ref.": 386.47,
         "Transformer": 386.70,
-        "Neural-PMP\n[3]": 387.02,
+        "Neural-PMP\nctrl-stage [3]": 387.02,
     }
     base = values["direct\ncost ref."]
     gaps = {name: value - base for name, value in values.items()}
