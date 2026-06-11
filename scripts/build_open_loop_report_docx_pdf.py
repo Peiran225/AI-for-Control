@@ -309,8 +309,8 @@ def build_en() -> Path:
     add_para(doc, "The final pointwise diagnostic below uses a smooth weight q(t) to separate the two regimes: near psi(t)=0 it emphasizes the singular-condition error; away from psi(t)=0 it emphasizes the boundary KKT error.")
     add_figure(doc, "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png", width=6.35)
 
-    add_heading(doc, "4. Comparison With Related Work [3]")
-    add_para(doc, "Related work [3], Neural-PMP / PMP-gradient, also follows a Pontryagin-style procedure: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. For comparison on the same model and parameters, we implemented the corresponding control-update step from [3].")
+    add_heading(doc, "4. Comparison With Gu et al. [3]")
+    add_para(doc, "Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP / PMP-gradient method also follows a Pontryagin-style procedure: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. For comparison on the same model and parameters, we implemented the corresponding control-update step from [3].")
     add_table(
         doc,
         ["method", "control update / training criterion", "PMP/KKT gap", "objective J*", "note"],
@@ -324,7 +324,7 @@ def build_en() -> Path:
         font_size=8.0,
     )
     add_note(doc, "* The J values in this table are computed after fixing u(t), reintegrating N(t) with a finer-step fourth-order Runge-Kutta method, and then applying the manuscript objective definition. This is only to use the same numerical integration accuracy across methods.")
-    add_para(doc, "Under the same PMP/KKT gap calculation, the Transformer u_theta(t) has a much smaller gap than the Neural-PMP implementation of [3]. When J is recomputed with the same numerical evaluator, the Transformer also has a slightly lower objective value in this run.")
+    add_para(doc, "Under the same PMP/KKT gap calculation, the Transformer u_theta(t) has a much smaller gap than the Neural-PMP implementation of Gu et al. [3]. When J is recomputed with the same numerical evaluator, the Transformer also has a slightly lower objective value in this run.")
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png", width=6.35)
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png", width=6.35)
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png", width=6.35)
@@ -389,8 +389,8 @@ def build_zh() -> Path:
     add_para(doc, "下面的逐点诊断图使用平滑权重 q(t) 区分两类区域：当 psi(t) 接近 0 时，主要看 singular-condition error；当 psi(t) 远离 0 时，主要看边界 KKT error。")
     add_figure(doc, "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png", width=6.35)
 
-    add_heading(doc, "4. 与 related work [3] 的比较")
-    add_para(doc, "Related work [3] 的 Neural-PMP / PMP-gradient 方法也基于 Pontryagin 思路：先正向求解状态，再反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。为了在同一个模型和参数下比较，我们实现了 [3] 中对应的控制更新步骤。")
+    add_heading(doc, "4. 与 Gu et al. [3] 的比较")
+    add_para(doc, "这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文的 Neural-PMP / PMP-gradient 方法也基于 Pontryagin 思路：先正向求解状态，再反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。为了在同一个模型和参数下比较，我们实现了 [3] 中对应的控制更新步骤。")
     add_table(
         doc,
         ["方法", "训练/更新准则", "PMP/KKT gap", "目标函数 J*", "说明"],
@@ -404,7 +404,7 @@ def build_zh() -> Path:
         font_size=8.0,
     )
     add_note(doc, "* 表中的 J 都是在控制 u(t) 固定后，用更细时间步长的四阶 Runge-Kutta 方法重新求解状态 N(t)，再按论文目标函数定义计算得到。这样做只是为了让不同方法的数值比较使用同一个积分精度。")
-    add_para(doc, "在同一个 PMP/KKT gap 计算方式下，Transformer u_theta(t) 的 gap 明显小于 [3] 的 Neural-PMP 实现；按同一数值评估方式重新计算目标函数 J 时，本次实验中 Transformer 的 J 也略低。")
+    add_para(doc, "在同一个 PMP/KKT gap 计算方式下，Transformer u_theta(t) 的 gap 明显小于 Gu et al. [3] 的 Neural-PMP 实现；按同一数值评估方式重新计算目标函数 J 时，本次实验中 Transformer 的 J 也略低。")
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png", width=6.35)
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png", width=6.35)
     add_figure(doc, "paper_runs/neural_pmp_baseline_beta01/neural_pmp_reference_gap_closeup.png", width=6.35)

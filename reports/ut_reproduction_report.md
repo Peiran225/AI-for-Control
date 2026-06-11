@@ -95,9 +95,9 @@ The next plot shows pointwise PMP/KKT diagnostics along the final learned trajec
 
 ![Pointwise PMP/KKT components](../paper_runs/open_loop_ut_report/pmp_condition_components_clean.png)
 
-## 4. Comparison With Related Work [3]
+## 4. Comparison With Gu et al. [3]
 
-Related work [3], Neural-PMP / PMP-gradient, also follows a Pontryagin-style procedure: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. For comparison on the same model and parameters, we implemented the corresponding control-update step from [3].
+Here [3] refers to Gu, Xiong, and Chen, *Pontryagin Optimal Control via Neural Networks* (arXiv:2212.14566). Their Neural-PMP / PMP-gradient method also follows a Pontryagin-style procedure: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. For comparison on the same model and parameters, we implemented the corresponding control-update step from [3].
 
 | method | control update / training criterion | PMP/KKT gap | objective \(J\)[^1] | note |
 |---|---|---:|---:|---|
@@ -118,6 +118,6 @@ Under the same PMP/KKT gap calculation, the Transformer \(u_\theta(t)\) has a mu
 
 ## 5. Conclusion
 
-The requested \(u(t)\) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives \(J\approx386.70\) under the common numerical evaluation. Compared with the Neural-PMP implementation of related work [3], the Transformer \(u(t)\) has a lower PMP/KKT gap and a slightly lower objective \(J\) on the nominal \(\beta=0.1\) setting.
+The requested \(u(t)\) reproduction is complete. The Transformer control trajectory trained with the manuscript's PMP/KKT optimality-gap loss is smooth and satisfies the control bounds, reduces the training optimality gap from 76.26 to 0.02637, and gives \(J\approx386.70\) under the common numerical evaluation. Compared with the Neural-PMP implementation of Gu et al. [3], the Transformer \(u(t)\) has a lower PMP/KKT gap and a slightly lower objective \(J\) on the nominal \(\beta=0.1\) setting.
 
 The state-dependent extension \(u(t,N)\) is not included in this report because it requires different optimality conditions.
