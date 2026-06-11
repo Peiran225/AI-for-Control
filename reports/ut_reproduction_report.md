@@ -70,7 +70,7 @@ The learned control starts high, transitions to a lower interior/singular-like r
 
 ![Transformer u(t) and N(t)](../paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png)
 
-The \(N(u)\) phase plot below shows the same rollout with population plotted directly against the applied control value. Color indicates time.
+The \(N(u)\) phase plot below shows the same rollout as state-control pairs \((u(t_k), N_i(t_k))\). Each curve corresponds to one state component \(N_i\); no mean or total population aggregation is used.
 
 ![N(u) phase plot](../paper_runs/open_loop_ut_report/nu_phase_plot_clean.png)
 

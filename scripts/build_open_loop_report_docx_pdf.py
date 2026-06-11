@@ -285,8 +285,8 @@ def build_en() -> Path:
     add_heading(doc, "2. Learned u(t), N(t), and N(u)")
     add_para(doc, "The learned control starts high, transitions to a lower interior/singular-like region, and increases again near the terminal portion.")
     add_figure(doc, "paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png", width=6.35)
-    add_para(doc, "The N(u) phase plot shows population directly against the applied control value; color indicates time.")
-    add_figure(doc, "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png", width=6.35)
+    add_para(doc, "The N(u) phase plot shows the same rollout as state-control pairs (u(t_k), N_i(t_k)). Each curve corresponds to one state component N_i; no mean or total population aggregation is used.")
+    add_figure(doc, "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png", width=6.75)
 
     doc.add_page_break()
     add_heading(doc, "3. Training Loss Trajectories for PMP/KKT Conditions")
@@ -364,8 +364,8 @@ def build_zh() -> Path:
     add_heading(doc, "2. 学到的 u(t)、N(t) 和 N(u)")
     add_para(doc, "学到的开环控制在开始阶段较高，中间阶段下降到接近 singular control 的内部取值，末端附近再次升高。")
     add_figure(doc, "paper_runs/open_loop_ut_report/ut_nt_trajectory_clean.png", width=6.35)
-    add_para(doc, "下面的 N(u) 图将同一次状态轨迹中的种群水平直接画在控制值 u(t) 上，颜色表示时间。")
-    add_figure(doc, "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png", width=6.35)
+    add_para(doc, "下面的 N(u) 图将同一次 rollout 画成状态-控制点 (u(t_k), N_i(t_k))。每条曲线对应一个状态分量 N_i；这里不再使用 mean population 或 total population。")
+    add_figure(doc, "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png", width=6.75)
 
     doc.add_page_break()
     add_heading(doc, "3. 各 PMP/KKT 最优性条件的 training loss trajectory")

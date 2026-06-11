@@ -59,35 +59,26 @@ def time_color(z: float) -> tuple[int, int, int]:
     return stops[-1][1]
 
 
-def draw_dashed_vertical(draw: ImageDraw.ImageDraw, x: float, y0: float, y1: float, color: tuple[int, int, int]) -> None:
-    dash = 10
-    gap = 7
-    y = y0
-    while y < y1:
-        draw.line([(x, y), (x, min(y + dash, y1))], fill=color, width=3)
-        y += dash + gap
+def component_color(i: int, m: int) -> tuple[int, int, int]:
+    # Blue -> teal -> green palette by state component, not by time.
+    return time_color(i / max(1, m - 1))
 
 
-def draw_panel(
+def draw_nu_panel(
     draw: ImageDraw.ImageDraw,
     box: tuple[int, int, int, int],
     u: np.ndarray,
-    y: np.ndarray,
-    t: np.ndarray,
-    title: str,
-    ylabel: str,
-    u_mean: float,
-    u_sing_mean: float,
+    N: np.ndarray,
 ) -> None:
     left, top, right, bottom = box
-    plot_left = left + 82
-    plot_top = top + 48
-    plot_right = right - 28
-    plot_bottom = bottom - 72
+    plot_left = left + 130
+    plot_top = top + 130
+    plot_right = right - 60
+    plot_bottom = bottom - 120
 
     xmin, xmax = 0.0, 3.05
-    ymin = max(0.0, float(np.nanmin(y)) * 0.92)
-    ymax = float(np.nanmax(y)) * 1.04
+    ymin = max(0.0, float(np.nanmin(N)) * 0.92)
+    ymax = float(np.nanmax(N)) * 1.04
     if ymax <= ymin:
         ymax = ymin + 1.0
 
@@ -97,12 +88,25 @@ def draw_panel(
     def sy(v: float) -> float:
         return plot_bottom - (v - ymin) / (ymax - ymin) * (plot_bottom - plot_top)
 
-    title_font = font(24, bold=True)
-    label_font = font(18)
-    small_font = font(15)
-    tick_font = font(14)
+    title_font = font(36, bold=True)
+    label_font = font(26)
+    small_font = font(18)
+    tick_font = font(18)
 
-    draw.text(((left + right) / 2, top + 10), title, fill=(20, 20, 20), anchor="ma", font=title_font)
+    draw.text(
+        ((left + right) / 2, top + 18),
+        "Transformer u(t): N(u) phase plot",
+        fill=(20, 20, 20),
+        anchor="ma",
+        font=title_font,
+    )
+    draw.text(
+        ((left + right) / 2, top + 52),
+        "Each curve uses the same time-grid samples: horizontal u(t_k), vertical N_i(t_k), i=0,...,20.",
+        fill=(80, 80, 80),
+        anchor="ma",
+        font=small_font,
+    )
 
     # Grid and ticks.
     for tick in np.linspace(0, 3, 7):
@@ -120,80 +124,29 @@ def draw_panel(
 
     # Axes.
     draw.rectangle([plot_left, plot_top, plot_right, plot_bottom], outline=(25, 25, 25), width=2)
-    draw.text(((plot_left + plot_right) / 2, bottom - 30), "control u(t)", fill=(20, 20, 20), anchor="ma", font=label_font)
-    draw.text((left + 12, top + 56), ylabel, fill=(20, 20, 20), anchor="la", font=small_font)
+    draw.text(((plot_left + plot_right) / 2, bottom - 42), "control u(t_k)", fill=(20, 20, 20), anchor="ma", font=label_font)
+    draw.text((plot_left, plot_top - 34), "state N_i(t_k)", fill=(20, 20, 20), anchor="la", font=label_font)
 
-    # Reference verticals.
-    draw_dashed_vertical(draw, sx(u_mean), plot_top, plot_bottom, (205, 48, 48))
-    draw_dashed_vertical(draw, sx(u_sing_mean), plot_top, plot_bottom, (45, 150, 80))
-
-    # Trajectory line.
-    points = [(sx(float(a)), sy(float(b))) for a, b in zip(u, y)]
-    if len(points) > 1:
-        draw.line(points, fill=(70, 70, 70), width=2)
-
-    # Time-colored points.
-    tmin, tmax = float(np.nanmin(t)), float(np.nanmax(t))
-    denom = max(tmax - tmin, 1e-12)
-    for a, b, tt in zip(u, y, t):
-        color = time_color((float(tt) - tmin) / denom)
-        x, yy = sx(float(a)), sy(float(b))
-        draw.ellipse([x - 4, yy - 4, x + 4, yy + 4], fill=color, outline=None)
-
-    # Legend.
-    lx, ly = plot_right - 210, plot_top + 16
-    draw.rectangle([lx - 12, ly - 10, lx + 198, ly + 48], fill=(255, 255, 255), outline=(210, 210, 210), width=1)
-    draw_dashed_vertical(draw, lx + 10, ly - 2, ly + 16, (205, 48, 48))
-    draw.text((lx + 26, ly - 2), "mean u", fill=(40, 40, 40), font=small_font)
-    draw_dashed_vertical(draw, lx + 10, ly + 24, ly + 42, (45, 150, 80))
-    draw.text((lx + 26, ly + 24), "mean u_sing", fill=(40, 40, 40), font=small_font)
-
-
-def draw_colorbar(draw: ImageDraw.ImageDraw, x: int, y0: int, y1: int, tmin: float, tmax: float) -> None:
-    for i, y in enumerate(range(y0, y1)):
-        z = i / max(1, y1 - y0 - 1)
-        draw.line([(x, y), (x + 18, y)], fill=time_color(z), width=1)
-    draw.rectangle([x, y0, x + 18, y1], outline=(40, 40, 40), width=1)
-    draw.text((x + 28, y0), f"t={tmin:.0f}", fill=(30, 30, 30), anchor="lm", font=font(14))
-    draw.text((x + 28, y1), f"t={tmax:.0f}", fill=(30, 30, 30), anchor="lm", font=font(14))
-    draw.text((x - 4, (y0 + y1) / 2), "time", fill=(30, 30, 30), anchor="rm", font=font(15))
+    # Draw all state components against the same control samples.
+    m = N.shape[1]
+    for i in range(m):
+        color = component_color(i, m)
+        points = [(sx(float(a)), sy(float(b))) for a, b in zip(u, N[:, i])]
+        if len(points) > 1:
+            draw.line(points, fill=color, width=2)
+        for x, yy in points[:: max(1, len(points) // 24)]:
+            draw.ellipse([x - 2.8, yy - 2.8, x + 2.8, yy + 2.8], fill=color, outline=None)
 
 
 def main() -> None:
     traj = read_trajectory(OUT_DIR / "trajectory_full.csv")
-    t = traj["t"]
     u = traj["u"]
-    mean_n = traj["mean_N"]
-    total_n = traj["total_N"]
-    u_sing = traj["u_sing"]
+    n_keys = sorted((key for key in traj if key.startswith("N_")), key=lambda x: int(x.split("_")[1]))
+    N = np.column_stack([traj[key] for key in n_keys])
 
-    image = Image.new("RGB", (1800, 720), "white")
+    image = Image.new("RGB", (1600, 1200), "white")
     draw = ImageDraw.Draw(image)
-    draw.text((900, 28), "Transformer u(t): N(u) phase plots", fill=(10, 10, 10), anchor="ma", font=font(34, bold=True))
-
-    draw_panel(
-        draw,
-        (35, 76, 870, 690),
-        u,
-        mean_n,
-        t,
-        "Mean population vs control",
-        "mean N(t)",
-        float(np.nanmean(u)),
-        float(np.nanmean(u_sing)),
-    )
-    draw_panel(
-        draw,
-        (895, 76, 1730, 690),
-        u,
-        total_n,
-        t,
-        "Total population vs control",
-        "sum_i N_i(t)",
-        float(np.nanmean(u)),
-        float(np.nanmean(u_sing)),
-    )
-    draw_colorbar(draw, 1748, 150, 610, float(np.nanmin(t)), float(np.nanmax(t)))
+    draw_nu_panel(draw, (55, 50, 1545, 1140), u, N)
 
     out_png = OUT_DIR / "nu_phase_plot_clean.png"
     image.save(out_png)
