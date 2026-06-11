@@ -11,7 +11,6 @@ import tempfile
 from pathlib import Path
 
 from docx import Document
-from docx.enum.section import WD_SECTION_START
 from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
@@ -53,6 +52,20 @@ def set_cell_width(cell, width_inches: float) -> None:
     tc_w.set(qn("w:type"), "dxa")
 
 
+def clear_table_borders(table) -> None:
+    tbl_pr = table._tbl.tblPr
+    borders = tbl_pr.find(qn("w:tblBorders"))
+    if borders is None:
+        borders = OxmlElement("w:tblBorders")
+        tbl_pr.append(borders)
+    for edge in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        element = borders.find(qn(f"w:{edge}"))
+        if element is None:
+            element = OxmlElement(f"w:{edge}")
+            borders.append(element)
+        element.set(qn("w:val"), "nil")
+
+
 def set_run_font(run, size: float | None = None, bold: bool = False, color: RGBColor | None = None, name: str = "Calibri") -> None:
     run.font.name = name
     run._element.rPr.rFonts.set(qn("w:eastAsia"), "PingFang SC")
@@ -79,6 +92,27 @@ def add_note(doc: Document, text: str) -> None:
     set_run_font(r, size=8.3, color=MUTED)
 
 
+def add_page_number_footer(doc: Document) -> None:
+    footer = doc.sections[0].footer
+    p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(0)
+
+    run = p.add_run("Page ")
+    set_run_font(run, size=8.5, color=MUTED)
+    fld_begin = OxmlElement("w:fldChar")
+    fld_begin.set(qn("w:fldCharType"), "begin")
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = "PAGE"
+    fld_end = OxmlElement("w:fldChar")
+    fld_end.set(qn("w:fldCharType"), "end")
+    run._r.append(fld_begin)
+    run._r.append(instr)
+    run._r.append(fld_end)
+
+
 def add_heading(doc: Document, text: str, level: int = 1) -> None:
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(14 if level == 1 else 10)
@@ -87,22 +121,31 @@ def add_heading(doc: Document, text: str, level: int = 1) -> None:
     set_run_font(r, size=15 if level == 1 else 12.5, bold=True, color=BLUE)
 
 
-def render_latex_equation(latex: str) -> Path | None:
+def render_latex_equation(latex: str, number: int | str | None = None) -> Path | None:
     if not shutil.which("tectonic") or not shutil.which("pdftocairo"):
         return None
     EQUATIONS.mkdir(parents=True, exist_ok=True)
-    key = hashlib.sha1(latex.encode("utf-8")).hexdigest()[:12]
+    key = hashlib.sha1(f"{number}:{latex}".encode("utf-8")).hexdigest()[:12]
     out_png = EQUATIONS / f"eq_{key}.png"
     if out_png.exists():
         return out_png
 
+    if number is None:
+        body = "\\[\n" f"{latex}\n" "\\]\n"
+    else:
+        body = (
+            "\\begin{minipage}{6.15in}\n"
+            "\\begin{equation}\n"
+            f"\\tag{{{number}}}\n"
+            f"{latex}\n"
+            "\\end{equation}\n"
+            "\\end{minipage}\n"
+        )
     tex = (
         "\\documentclass[preview,border=2pt]{standalone}\n"
         "\\usepackage{amsmath,amssymb}\n"
         "\\begin{document}\n"
-        "\\[\n"
-        f"{latex}\n"
-        "\\]\n"
+        f"{body}"
         "\\end{document}\n"
     )
     with tempfile.TemporaryDirectory() as tmp:
@@ -125,15 +168,15 @@ def render_latex_equation(latex: str) -> Path | None:
     return out_png
 
 
-def add_equation(doc: Document, latex: str) -> None:
+def add_equation(doc: Document, latex: str, number: int | str | None = None) -> None:
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(4)
     p.paragraph_format.space_after = Pt(8)
-    png = render_latex_equation(latex)
+    png = render_latex_equation(latex, number)
     if png is not None:
         with Image.open(png) as im:
-            width = min(6.15, max(2.2, im.width / 150.0))
+            width = min(6.35, max(2.2, im.width / 150.0))
         p.add_run().add_picture(str(png), width=Inches(width))
         return
 
@@ -199,6 +242,7 @@ def setup_doc() -> Document:
     styles["Normal"].font.name = "Calibri"
     styles["Normal"]._element.rPr.rFonts.set(qn("w:eastAsia"), "PingFang SC")
     styles["Normal"].font.size = Pt(10.5)
+    add_page_number_footer(doc)
     return doc
 
 
@@ -220,12 +264,12 @@ def build_en() -> Path:
 
     add_heading(doc, "1. Model and Training Objective")
     add_para(doc, "We use the population dynamics and cost from the manuscript:")
-    add_equation(doc, r"\dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t)")
-    add_equation(doc, r"G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right)")
-    add_equation(doc, r"J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt")
+    add_equation(doc, r"\dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t)", 1)
+    add_equation(doc, r"G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right)", 2)
+    add_equation(doc, r"J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt", 3)
     add_para(doc, "Reported parameters: T=10, m=21, u_max=3, alpha=1, beta=0.1, gamma=20, and N_i(0)=10. The control is represented by a small Transformer encoder over normalized time: u_theta(t_k)=u_max sigma(g_theta(t_k)).")
     add_para(doc, "Given u_theta(t), we roll out N_theta(t), solve the costate equation backward, and compute the switching function")
-    add_equation(doc, r"\psi(t)=H_u(N,\lambda,u)=\gamma-\sum_i\phi_i\lambda_i(t)N_i(t)")
+    add_equation(doc, r"\psi(t)=H_u(N,\lambda,u)=\gamma-\sum_i\phi_i\lambda_i(t)N_i(t)", 4)
     add_table(
         doc,
         ["component", "role"],
@@ -299,12 +343,12 @@ def build_zh() -> Path:
 
     add_heading(doc, "1. 模型和训练目标")
     add_para(doc, "我们使用论文中的种群动力学模型和目标函数：")
-    add_equation(doc, r"\dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t)")
-    add_equation(doc, r"G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right)")
-    add_equation(doc, r"J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt")
+    add_equation(doc, r"\dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t)", 1)
+    add_equation(doc, r"G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right)", 2)
+    add_equation(doc, r"J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt", 3)
     add_para(doc, "本次参数为 T=10，m=21，u_max=3，alpha=1，beta=0.1，gamma=20，初始条件为 N_i(0)=10。控制函数由小型 Transformer encoder 表示：u_theta(t_k)=u_max sigma(g_theta(t_k))。")
     add_para(doc, "给定 u_theta(t) 后，先正向求解得到 N_theta(t)，再反向求解 costate，并计算 switching function：")
-    add_equation(doc, r"\psi(t)=H_u(N,\lambda,u)=\gamma-\sum_i\phi_i\lambda_i(t)N_i(t)")
+    add_equation(doc, r"\psi(t)=H_u(N,\lambda,u)=\gamma-\sum_i\phi_i\lambda_i(t)N_i(t)", 4)
     add_table(
         doc,
         ["component", "作用"],

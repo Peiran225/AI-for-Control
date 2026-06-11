@@ -14,16 +14,19 @@ We use the population dynamics
 
 $$
 \dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t),
+\tag{1}
 $$
 
 $$
 G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right),
+\tag{2}
 $$
 
 and the cost
 
 $$
 J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt.
+\tag{3}
 $$
 
 For the reported run, \(T=10\), \(m=21\), \(u_{\max}=3\), \(\alpha=1\), \(\beta=0.1\), \(\gamma=20\), and \(N_i(0)=10\). The control is represented by a small Transformer encoder over normalized time, with
@@ -37,6 +40,7 @@ The training loss follows the manuscript's PMP/KKT optimality-gap formulation. A
 $$
 \psi(t)=H_u(N,\lambda,u)
 =\gamma-\sum_i\phi_i\lambda_i(t)N_i(t).
+\tag{4}
 $$
 
 The loss has two optimality-condition components:
