@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from docx import Document
@@ -14,11 +17,13 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
+from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORTS = ROOT / "reports"
 FIG = ROOT / "paper_runs"
+EQUATIONS = REPORTS / "equation_assets"
 PY = os.environ.get("PYTHON", sys.executable)
 RENDER = os.environ.get("RENDER_DOCX")
 
@@ -82,12 +87,57 @@ def add_heading(doc: Document, text: str, level: int = 1) -> None:
     set_run_font(r, size=15 if level == 1 else 12.5, bold=True, color=BLUE)
 
 
-def add_equation(doc: Document, text: str) -> None:
+def render_latex_equation(latex: str) -> Path | None:
+    if not shutil.which("tectonic") or not shutil.which("pdftocairo"):
+        return None
+    EQUATIONS.mkdir(parents=True, exist_ok=True)
+    key = hashlib.sha1(latex.encode("utf-8")).hexdigest()[:12]
+    out_png = EQUATIONS / f"eq_{key}.png"
+    if out_png.exists():
+        return out_png
+
+    tex = (
+        "\\documentclass[preview,border=2pt]{standalone}\n"
+        "\\usepackage{amsmath,amssymb}\n"
+        "\\begin{document}\n"
+        "\\[\n"
+        f"{latex}\n"
+        "\\]\n"
+        "\\end{document}\n"
+    )
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+        tex_path = tmp_dir / "equation.tex"
+        tex_path.write_text(tex, encoding="utf-8")
+        subprocess.run(
+            ["tectonic", "--outdir", str(tmp_dir), str(tex_path)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        subprocess.run(
+            ["pdftocairo", "-png", "-singlefile", "-r", "300", str(tmp_dir / "equation.pdf"), str(tmp_dir / "equation")],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        shutil.copyfile(tmp_dir / "equation.png", out_png)
+    return out_png
+
+
+def add_equation(doc: Document, latex: str) -> None:
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_before = Pt(4)
     p.paragraph_format.space_after = Pt(8)
-    r = p.add_run(text)
+    png = render_latex_equation(latex)
+    if png is not None:
+        with Image.open(png) as im:
+            width = min(6.15, max(2.2, im.width / 150.0))
+        p.add_run().add_picture(str(png), width=Inches(width))
+        return
+
+    r = p.add_run(latex)
     set_run_font(r, size=10.5, name="Cambria Math")
     r.font.color.rgb = RGBColor(17, 24, 39)
 
@@ -103,7 +153,9 @@ def add_table(doc: Document, headers: list[str], rows: list[list[str]], widths: 
         hdr[i].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
         p = hdr[i].paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p.paragraph_format.space_after = Pt(0)
+        p.paragraph_format.space_before = Pt(1)
+        p.paragraph_format.space_after = Pt(1)
+        p.paragraph_format.line_spacing = 1.05
         r = p.add_run(text)
         set_run_font(r, size=font_size, bold=True, color=DARK)
     for row in rows:
@@ -113,7 +165,9 @@ def add_table(doc: Document, headers: list[str], rows: list[list[str]], widths: 
             cells[i].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
             p = cells[i].paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER if i >= 2 and i <= 5 else WD_ALIGN_PARAGRAPH.LEFT
-            p.paragraph_format.space_after = Pt(0)
+            p.paragraph_format.space_before = Pt(1)
+            p.paragraph_format.space_after = Pt(1)
+            p.paragraph_format.line_spacing = 1.05
             r = p.add_run(text)
             set_run_font(r, size=font_size, color=DARK)
     doc.add_paragraph().paragraph_format.space_after = Pt(4)
@@ -166,12 +220,12 @@ def build_en() -> Path:
 
     add_heading(doc, "1. Model and Training Objective")
     add_para(doc, "We use the population dynamics and cost from the manuscript:")
-    add_equation(doc, "dN_i/dt = (r_i - phi_i u(t) - M_i G(N(t))) N_i(t)")
-    add_equation(doc, "G(N) = log(1 + (1/m) sum_k N_k)")
-    add_equation(doc, "J(u) = alpha^T N(T) + int_0^T [ beta^T N(t) + gamma u(t) ] dt")
+    add_equation(doc, r"\dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t)")
+    add_equation(doc, r"G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right)")
+    add_equation(doc, r"J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt")
     add_para(doc, "Reported parameters: T=10, m=21, u_max=3, alpha=1, beta=0.1, gamma=20, and N_i(0)=10. The control is represented by a small Transformer encoder over normalized time: u_theta(t_k)=u_max sigma(g_theta(t_k)).")
     add_para(doc, "Given u_theta(t), we roll out N_theta(t), solve the costate equation backward, and compute the switching function")
-    add_equation(doc, "psi(t) = H_u(N, lambda, u) = gamma - sum_i phi_i lambda_i(t) N_i(t).")
+    add_equation(doc, r"\psi(t)=H_u(N,\lambda,u)=\gamma-\sum_i\phi_i\lambda_i(t)N_i(t)")
     add_table(
         doc,
         ["component", "role"],
@@ -190,6 +244,7 @@ def build_en() -> Path:
     add_para(doc, "The N(u) phase plot shows population directly against the applied control value; color indicates time.")
     add_figure(doc, "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png", width=6.35)
 
+    doc.add_page_break()
     add_heading(doc, "3. Training Loss Trajectories for PMP/KKT Conditions")
     add_para(doc, "The table reports the smallest recorded training loss. In this experiment, the training loss is the manuscript's PMP/KKT optimality gap, composed of the singular condition and the non-singular Hamiltonian minimization condition.")
     add_table(
@@ -244,12 +299,12 @@ def build_zh() -> Path:
 
     add_heading(doc, "1. 模型和训练目标")
     add_para(doc, "我们使用论文中的种群动力学模型和目标函数：")
-    add_equation(doc, "dN_i/dt = (r_i - phi_i u(t) - M_i G(N(t))) N_i(t)")
-    add_equation(doc, "G(N) = log(1 + (1/m) sum_k N_k)")
-    add_equation(doc, "J(u) = alpha^T N(T) + int_0^T [ beta^T N(t) + gamma u(t) ] dt")
+    add_equation(doc, r"\dot N_i(t)=\big(r_i-\phi_i u(t)-M_iG(N(t))\big)N_i(t)")
+    add_equation(doc, r"G(N)=\log\left(1+\frac{1}{m}\sum_{k=1}^m N_k\right)")
+    add_equation(doc, r"J(u)=\alpha^\top N(T)+\int_0^T\big(\beta^\top N(t)+\gamma u(t)\big)\,dt")
     add_para(doc, "本次参数为 T=10，m=21，u_max=3，alpha=1，beta=0.1，gamma=20，初始条件为 N_i(0)=10。控制函数由小型 Transformer encoder 表示：u_theta(t_k)=u_max sigma(g_theta(t_k))。")
     add_para(doc, "给定 u_theta(t) 后，先正向求解得到 N_theta(t)，再反向求解 costate，并计算 switching function：")
-    add_equation(doc, "psi(t) = H_u(N, lambda, u) = gamma - sum_i phi_i lambda_i(t) N_i(t).")
+    add_equation(doc, r"\psi(t)=H_u(N,\lambda,u)=\gamma-\sum_i\phi_i\lambda_i(t)N_i(t)")
     add_table(
         doc,
         ["component", "作用"],
@@ -268,6 +323,7 @@ def build_zh() -> Path:
     add_para(doc, "下面的 N(u) 图将同一次状态轨迹中的种群水平直接画在控制值 u(t) 上，颜色表示时间。")
     add_figure(doc, "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png", width=6.35)
 
+    doc.add_page_break()
     add_heading(doc, "3. 各 PMP/KKT 最优性条件的 training loss trajectory")
     add_para(doc, "下表汇总训练过程中记录到的最小 training loss。这里的 training loss 正是论文中定义的 PMP/KKT optimality gap，由 singular condition 和 non-singular Hamiltonian minimization condition 两部分组成。")
     add_table(
