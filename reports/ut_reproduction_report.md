@@ -76,7 +76,7 @@ The \(N(u)\) phase plot below shows the same rollout as state-control pairs \((u
 
 ![N(u) phase plot](../paper_runs/open_loop_ut_report/nu_phase_plot_clean.png)
 
-*Figure 2. \(N(u)\) phase plot using the state-control points \((u(t_k), N_i(t_k))\) for all state components.*
+*Figure 2. \(N(u)\) phase plot using the state-control points \((u(t_k), N_i(t_k))\) for all state components; colors distinguish state index \(i\), not time.*
 
 ## 3. Training Loss Trajectories for PMP/KKT Conditions
 

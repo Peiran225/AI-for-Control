@@ -64,6 +64,23 @@ def component_color(i: int, m: int) -> tuple[int, int, int]:
     return time_color(i / max(1, m - 1))
 
 
+def draw_component_colorbar(draw: ImageDraw.ImageDraw, x: int, y0: int, y1: int, m: int) -> None:
+    label_font = font(17)
+    tick_font = font(15)
+    width = 22
+    for yy in range(y0, y1 + 1):
+        z = (yy - y0) / max(1, y1 - y0)
+        i = int(round(z * (m - 1)))
+        draw.line([(x, yy), (x + width, yy)], fill=component_color(i, m), width=1)
+    draw.rectangle([x, y0, x + width, y1], outline=(40, 40, 40), width=1)
+    for i in [0, m // 2, m - 1]:
+        yy = y0 + i / max(1, m - 1) * (y1 - y0)
+        draw.line([(x + width, yy), (x + width + 7, yy)], fill=(40, 40, 40), width=2)
+        draw.text((x + width + 12, yy), f"N_{i}", fill=(40, 40, 40), anchor="lm", font=tick_font)
+    draw.text((x + width / 2, y0 - 42), "color = state", fill=(45, 55, 65), anchor="ma", font=label_font)
+    draw.text((x + width / 2, y0 - 21), "index i", fill=(45, 55, 65), anchor="ma", font=label_font)
+
+
 def draw_nu_panel(
     draw: ImageDraw.ImageDraw,
     box: tuple[int, int, int, int],
@@ -73,7 +90,7 @@ def draw_nu_panel(
     left, top, right, bottom = box
     plot_left = left + 130
     plot_top = top + 130
-    plot_right = right - 60
+    plot_right = right - 150
     plot_bottom = bottom - 120
 
     xmin, xmax = 0.0, 3.05
@@ -102,7 +119,7 @@ def draw_nu_panel(
     )
     draw.text(
         ((left + right) / 2, top + 52),
-        "Each curve uses the same time-grid samples: horizontal u(t_k), vertical N_i(t_k), i=0,...,20.",
+        "Each curve uses the same time-grid samples: horizontal u(t_k), vertical N_i(t_k). Color distinguishes state index i, not time.",
         fill=(80, 80, 80),
         anchor="ma",
         font=small_font,
@@ -136,6 +153,7 @@ def draw_nu_panel(
             draw.line(points, fill=color, width=2)
         for x, yy in points[:: max(1, len(points) // 24)]:
             draw.ellipse([x - 2.8, yy - 2.8, x + 2.8, yy + 2.8], fill=color, outline=None)
+    draw_component_colorbar(draw, plot_right + 38, plot_top + 28, plot_top + 260, m)
 
 
 def main() -> None:

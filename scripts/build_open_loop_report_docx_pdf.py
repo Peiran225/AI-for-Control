@@ -294,7 +294,7 @@ def build_en() -> Path:
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
-        caption="Figure 2. N(u) phase plot using the state-control points (u(t_k), N_i(t_k)) for all state components.",
+        caption="Figure 2. N(u) phase plot using the state-control points (u(t_k), N_i(t_k)) for all state components; colors distinguish state index i, not time.",
         width=6.75,
     )
 
@@ -408,7 +408,7 @@ def build_zh() -> Path:
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
-        caption="图 2. N(u) 相图：对所有状态分量画出状态-控制点 (u(t_k), N_i(t_k))。",
+        caption="图 2. N(u) 相图：对所有状态分量画出状态-控制点 (u(t_k), N_i(t_k))；颜色表示状态编号 i，而不是时间。",
         width=6.75,
     )
 
