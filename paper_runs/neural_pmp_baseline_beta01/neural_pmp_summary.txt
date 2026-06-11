@@ -1,0 +1,20 @@
+Best Neural-PMP oracle-dynamics run
+run_id: 22
+seed: 1
+start: random
+lr: 0.1
+iters: 2500
+best_iter: 288
+J: 374.2858029309839
+legacy_pmp_gap: 3.2472049933809854
+normalized_kkt_mean: 0.01849737784194933
+normalized_kkt_max: 0.07184957643490475
+projected_gradient_residual: 0.0
+hamiltonian_drift: 60.83997105747715
+hamiltonian_rel_drift: 1.8520190014714761
+u_min: 0.0
+u_max: 3.0
+u_mean: 1.3432835820895523
+final_mean_N: 1.114474663952604
+psi_abs_mean: 0.8337620858977846
+q_mean: 0.002390145451743822

@@ -1,0 +1,7 @@
+method,training,native_J,common_grid_J,common_grid_gap,rk4_ref_J,final_mean_N_ref,note
+direct open-loop n800 refined,direct J optimization,,384.2469157232239,0.8047034253350629,386.43799104254543,1.1948092275720374,best available open-loop reference
+Transformer open-loop u_theta(t),PMP/KKT residual loss,384.7523395342745,386.31290717968375,0.05229711897389422,386.69506496922077,1.2401142293058123,smooth neural time policy
+Neural-PMP oracle dynamics,PMP-gradient on J,374.2858029309839,385.0295679392182,7.470744417873622,386.98601770018286,1.2726874477729802,[3] controller-stage baseline; exact dynamics
+constant u=1.5 anchor,none,,400.3009516600441,76.88704100122332,400.40271607345244,1.9258098313400918,simple anchor
+demo singular fixed-point s.csv,repository demo output,,422.55812112063586,434.31213027155707,422.6702388676551,0.5333565694362948,not [3] implementation
+demo checkpoint sigmoid projection,repository demo checkpoint,498.84026298985384,,10546.994849372953,,7.550525817919681,legalized raw checkpoint output; not [3]
