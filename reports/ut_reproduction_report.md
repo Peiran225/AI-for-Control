@@ -68,11 +68,11 @@ The learned control starts high, transitions to a lower interior/singular-like r
 
 *Figure 1. Learned Transformer control \(u(t)\), population trajectory \(N(t)\), switching function \(\psi(t)\), and singular weight \(q(t)\).*
 
-The \(N(u)\) phase plot below shows the same rollout by plotting each state component directly against the applied control.
+The \(N(u)\) phase plot below uses the total population across all 21 subpopulations.
 
 ![N(u) phase plot](../paper_runs/open_loop_ut_report/nu_phase_plot_clean.png)
 
-*Figure 2. \(N(u)\) phase plot: each state component is plotted against the applied control; colors distinguish the state index.*
+*Figure 2. \(N(u)\) phase plot using the total population across the 21 subpopulations.*
 
 ## 3. Training Loss Trajectories for PMP/KKT Conditions
 

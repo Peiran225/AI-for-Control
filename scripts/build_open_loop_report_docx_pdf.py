@@ -290,11 +290,11 @@ def build_en() -> Path:
         caption="Figure 1. Learned Transformer control u(t), population trajectory N(t), switching function psi(t), and singular weight q(t).",
         width=6.35,
     )
-    add_para(doc, "The N(u) phase plot shows the same rollout by plotting each state component directly against the applied control.")
+    add_para(doc, "The N(u) phase plot below uses the total population across all 21 subpopulations.")
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
-        caption="Figure 2. N(u) phase plot: each state component is plotted against the applied control; colors distinguish the state index.",
+        caption="Figure 2. N(u) phase plot using the total population across the 21 subpopulations.",
         width=6.75,
     )
 
@@ -404,11 +404,11 @@ def build_zh() -> Path:
         caption="图 1. 学到的 Transformer 控制 u(t)、状态轨迹 N(t)、switching function psi(t) 和 singular weight q(t)。",
         width=6.35,
     )
-    add_para(doc, "下面的 N(u) 图将同一次 rollout 中的每个状态分量直接画在对应控制值上。")
+    add_para(doc, "下面的 N(u) 图以 21 个 subpopulation 的总和作为纵轴。")
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/nu_phase_plot_clean.png",
-        caption="图 2. N(u) 相图：每个状态分量直接画在对应控制值上；颜色表示状态编号。",
+        caption="图 2. N(u) 相图，纵轴为 21 个 subpopulation 的总和。",
         width=6.75,
     )
 
