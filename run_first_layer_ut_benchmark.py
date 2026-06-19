@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""Publishable first-layer u(t) benchmark.
+"""u(t) reproduction comparison.
 
 This script keeps the comparison in the manuscript's fixed-initial-condition,
 time-dependent-control setting.  It aggregates:
 
-* Transformer u_theta(t) trained by the paper PMP/KKT loss, over multiple seeds.
-* Neural-PMP / PMP-gradient controller-stage baseline [3].
-* Direct grid-cost reference.
-* Repository demo / teacher checkpoint outputs.
+* Transformer u_theta(t) trained by the paper PMP/KKT loss.
+* Neural-PMP / PMP-gradient comparison [3].
+* Direct minimization of J on a time mesh.
+* Provided repository outputs.
 * Constant-control anchor.
 
-All controls are re-evaluated by the same RK4 reference integrator.
+All controls are evaluated with the same objective computation.
 """
 
 from __future__ import annotations
@@ -244,12 +244,12 @@ def plot_outputs(rows: List[Dict[str, object]], summary: List[Dict[str, object]]
     colors = ["#4C78A8", "#72B7B2", "#F58518", "#54A24B", "#E45756", "#B279A2"]
     fig, axes = plt.subplots(1, 2, figsize=(11.5, 4.2), dpi=190)
     axes[0].bar(groups, J_mean, yerr=J_std, color=colors[: len(groups)], capsize=3)
-    axes[0].set_ylabel("RK4 reference objective J")
-    axes[0].set_title("First-layer u(t) benchmark")
+    axes[0].set_ylabel("objective J on a common fine mesh")
+    axes[0].set_title("Transformer u(t) comparison")
     axes[0].tick_params(axis="x", rotation=20)
     axes[1].bar(groups, gap_mean, yerr=gap_std, color=colors[: len(groups)], capsize=3)
     axes[1].set_yscale("log")
-    axes[1].set_ylabel("PMP/KKT diagnostic gap")
+    axes[1].set_ylabel("PMP/KKT optimality gap")
     axes[1].tick_params(axis="x", rotation=20)
     fig.tight_layout()
     fig.savefig(out_dir / "first_layer_summary.png", bbox_inches="tight")
@@ -261,19 +261,19 @@ def plot_outputs(rows: List[Dict[str, object]], summary: List[Dict[str, object]]
         x = np.full(len(y), groups.index(group), dtype=float) + np.linspace(-0.08, 0.08, len(y))
         ax.scatter(x, y, s=36, label=group)
     ax.set_xticks(range(len(groups)), groups, rotation=20)
-    ax.set_ylabel("RK4 reference objective J")
+    ax.set_ylabel("objective J on a common fine mesh")
     ax.set_title("Per-run objective values")
     ax.grid(True, axis="y", alpha=0.25)
     fig.tight_layout()
     fig.savefig(out_dir / "first_layer_per_run_J.png", bbox_inches="tight")
     plt.close(fig)
 
-    direct_vals = [float(r["J_ref"]) for r in rows if r["group"] == "direct reference"]
+    direct_vals = [float(r["J_ref"]) for r in rows if r["group"] == "direct minimization"]
     if direct_vals:
         direct = direct_vals[0]
-        close_groups = ["direct reference", "Transformer", "Neural-PMP [3]"]
+        close_groups = ["direct minimization", "Transformer", "Neural-PMP [3]"]
         fig, ax = plt.subplots(figsize=(7.0, 4.2), dpi=190)
-        palette = {"direct reference": "#4C78A8", "Transformer": "#72B7B2", "Neural-PMP [3]": "#F58518"}
+        palette = {"direct minimization": "#4C78A8", "Transformer": "#72B7B2", "Neural-PMP [3]": "#F58518"}
         for i, group in enumerate(close_groups):
             vals = [float(r["J_ref"]) - direct for r in rows if r["group"] == group]
             if not vals:
@@ -285,17 +285,17 @@ def plot_outputs(rows: List[Dict[str, object]], summary: List[Dict[str, object]]
             ax.hlines(np.mean(vals), i - 0.18, i + 0.18, color=palette[group], lw=2.0)
         ax.axhline(0.0, color="#333333", lw=0.9)
         ax.set_xticks(range(len(close_groups)), close_groups, rotation=12)
-        ax.set_ylabel("objective gap relative to direct reference")
-        ax.set_title("Main u(t) objective comparison")
+        ax.set_ylabel("J - J(direct minimization)")
+        ax.set_title("Objective comparison for u(t)")
         ax.grid(True, axis="y", alpha=0.25)
         fig.tight_layout()
-        fig.savefig(out_dir / "first_layer_objective_gap_closeup.png", bbox_inches="tight")
+        fig.savefig(out_dir / "objective_gap_comparison.png", bbox_inches="tight")
         plt.close(fig)
 
 
 def plot_transformer_seed_losses(out_dir: Path, seeds: List[int]) -> None:
     fig, ax = plt.subplots(figsize=(7.2, 4.4), dpi=190)
-    for seed in seeds:
+    for idx, seed in enumerate(seeds, start=1):
         path = out_dir / "transformer_seeds" / f"seed_{seed}" / "history.csv"
         if not path.exists():
             continue
@@ -303,11 +303,11 @@ def plot_transformer_seed_losses(out_dir: Path, seeds: List[int]) -> None:
         if data.size == 0:
             continue
         best_so_far = np.minimum.accumulate(data["loss"])
-        ax.plot(data["epoch"], best_so_far, lw=1.9, alpha=0.9, label=f"seed {seed}")
+        ax.plot(data["epoch"], best_so_far, lw=1.9, alpha=0.9, label=f"training {idx}")
     ax.set_yscale("log")
     ax.set_xlabel("training epoch")
-    ax.set_ylabel("best-so-far PMP/KKT training loss")
-    ax.set_title("Transformer u(t) multi-seed convergence")
+    ax.set_ylabel("minimum PMP/KKT training loss")
+    ax.set_title("Transformer u(t): independent trainings")
     ax.grid(True, which="both", axis="y", alpha=0.25)
     ax.legend(ncol=3, fontsize=8, frameon=False)
     fig.tight_layout()
@@ -334,13 +334,13 @@ def main() -> None:
     direct_path = ROOT / "paper_runs" / "direct_openloop_cost_beta01_n800_refined" / "scale_1_direct_solution.npz"
     if direct_path.exists():
         t, u = read_solution_npz(direct_path)
-        rows.append(evaluate_control("direct n800 refined", "direct reference", t, u, cfg, p, args.n_ref, "independent direct cost reference"))
+        rows.append(evaluate_control("direct n800 refined", "direct minimization", t, u, cfg, p, args.n_ref, "direct minimization of J on a time mesh"))
 
     # Main clean Transformer run from the current report.
     report_path = ROOT / "paper_runs" / "open_loop_ut_report" / "solution.npz"
     if report_path.exists():
         t, u = read_solution_npz(report_path)
-        rows.append(evaluate_control("Transformer report run", "Transformer", t, u, cfg, p, args.n_ref, "current report checkpoint"))
+        rows.append(evaluate_control("Transformer report training", "Transformer", t, u, cfg, p, args.n_ref, "current report solution"))
 
     for seed in seeds:
         out = run_transformer_seed(seed, args)
@@ -350,21 +350,21 @@ def main() -> None:
     neural_path = ROOT / "paper_runs" / "neural_pmp_baseline_beta01" / "best_neural_pmp_solution.npz"
     if neural_path.exists():
         t, u = read_solution_npz(neural_path)
-        rows.append(evaluate_control("Neural-PMP best", "Neural-PMP [3]", t, u, cfg, p, args.n_ref, "best existing oracle-dynamics run"))
+        rows.append(evaluate_control("Neural-PMP best", "Neural-PMP [3]", t, u, cfg, p, args.n_ref, "best known-dynamics run"))
 
     # Constant anchor.
     t_const = np.linspace(0.0, cfg.T, args.n_train + 1)
     u_const = np.full_like(t_const, 1.5)
     rows.append(evaluate_control("constant u=1.5", "constant anchor", t_const, u_const, cfg, p, args.n_ref, "scale check"))
 
-    # Repository demo outputs, if present.
+    # Provided repository outputs, if present.
     demo_s = ROOT / "s.csv"
     if demo_s.exists():
         try:
             arr = np.loadtxt(demo_s, delimiter=",")
             u = arr.reshape(-1)
             t = np.linspace(0.0, cfg.T, len(u))
-            rows.append(evaluate_control("demo singular fixed-point s.csv", "repo demo", t, u, cfg, p, args.n_ref, "repository output"))
+            rows.append(evaluate_control("provided singular fixed-point s.csv", "provided repository output", t, u, cfg, p, args.n_ref, "provided output file"))
         except Exception as exc:
             print(f"skipping s.csv: {exc}", flush=True)
     demo_u = ROOT / "u_vec.csv"
@@ -373,7 +373,7 @@ def main() -> None:
             arr = np.loadtxt(demo_u, delimiter=",")
             u = arr.reshape(-1)
             t = np.linspace(0.0, cfg.T, len(u))
-            rows.append(evaluate_control("demo u_vec.csv", "repo demo", t, u, cfg, p, args.n_ref, "repository output"))
+            rows.append(evaluate_control("provided u_vec.csv", "provided repository output", t, u, cfg, p, args.n_ref, "provided output file"))
         except Exception as exc:
             print(f"skipping u_vec.csv: {exc}", flush=True)
 

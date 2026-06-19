@@ -65,13 +65,13 @@ def main() -> None:
         gridspec_kw={"height_ratios": [0.85, 1.15], "hspace": 0.14},
     )
     ax = axes[0]
-    ax.step(t, u, where="post", color="#4c78a8", lw=2.2, label=r"Neural-PMP controller-stage $u(t)$")
+    ax.step(t, u, where="post", color="#4c78a8", lw=2.2, label=r"Neural-PMP $u(t)$")
     ax.set_ylabel(r"control $u(t)$")
     ax.set_ylim(-0.12, 3.12)
     ax.set_yticks([0, 1.5, 3.0])
     ax.grid(True, alpha=0.25)
     ax.legend(loc="upper right", frameon=True)
-    ax.set_title(r"Neural-PMP controller-stage baseline [3]: control and state trajectory")
+    ax.set_title(r"Neural-PMP [3]: control and state trajectory")
 
     ax = axes[1]
     n_min = N.min(axis=1)
@@ -104,13 +104,13 @@ def main() -> None:
     axes[0].text(0.98, 0.08, f"best J = {best_j.min():.2f}", ha="right", va="bottom", transform=axes[0].transAxes)
 
     axes[1].plot(iters, gap, color="#f58518", lw=2.6)
-    axes[1].set_title("Training-time PMP/KKT diagnostic")
+    axes[1].set_title("Training-time PMP/KKT gap")
     axes[1].set_xlabel("iteration")
     axes[1].set_ylabel("PMP/KKT gap")
     axes[1].set_yscale("log")
     axes[1].grid(True, which="both", alpha=0.25)
 
-    fig.suptitle("Neural-PMP controller-stage baseline [3]: selected-run training trajectories", y=1.03, fontsize=18)
+    fig.suptitle("Neural-PMP [3]: selected training trajectories", y=1.03, fontsize=18)
     fig.tight_layout()
 
     out = OUT_DIR / "neural_pmp_training_curve.png"

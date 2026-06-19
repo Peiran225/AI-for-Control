@@ -259,7 +259,7 @@ def add_title(doc: Document, title: str, subtitle: str) -> None:
 
 def build_en() -> Path:
     doc = setup_doc()
-    add_title(doc, "Transformer u(t) First-Layer Experiment Report", "Fixed-initial-condition time-dependent control trained by PMP/KKT optimality gaps")
+    add_title(doc, "Transformer u(t) Reproduction Report", "Fixed-initial-condition time-dependent control under PMP/KKT optimality conditions")
     add_para(doc, "This report focuses on the manuscript's time-dependent control strategy u_theta(t): [0,T] -> [0,u_max] for the fixed initial condition. The state-dependent feedback extension u(t,N) is not included here.")
 
     add_heading(doc, "1. Model and Training Objective")
@@ -308,7 +308,7 @@ def build_en() -> Path:
             ["total training loss / PMP-KKT optimality gap", "0.02637"],
             ["singular-condition training loss", "0.00167"],
             ["non-singular Hamiltonian-minimization training loss", "0.02471"],
-            ["objective J on the training grid", "384.76"],
+            ["objective J during training", "384.76"],
             ["range and mean of u_theta(t)", "min 1.038, max 2.758, mean 1.372"],
             ["terminal mean state", "1.207"],
         ],
@@ -321,7 +321,7 @@ def build_en() -> Path:
         caption="Figure 3. Training trajectories of the total PMP/KKT optimality gap and its singular and non-singular components.",
         width=6.35,
     )
-    add_para(doc, "The final pointwise diagnostic below uses a smooth weight q(t) to separate the two regimes: near psi(t)=0 it emphasizes the singular-condition error; away from psi(t)=0 it emphasizes the boundary KKT error.")
+    add_para(doc, "The final pointwise condition plot below uses a smooth weight q(t) to separate the two regimes: near psi(t)=0 it emphasizes the singular-condition error; away from psi(t)=0 it emphasizes the boundary KKT error.")
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png",
@@ -329,70 +329,70 @@ def build_en() -> Path:
         width=6.35,
     )
 
-    add_heading(doc, "4. First-Layer Benchmark and Related Work")
-    add_para(doc, "For this first-layer experiment, all numerical comparisons keep the same fixed initial condition and compare time-dependent controls u(t). Several related-work papers in the manuscript target value-function or feedback formulations; those are important method references, but they are not the same numerical task as this u(t) reproduction.")
+    add_heading(doc, "4. Comparison with Related Work")
+    add_para(doc, "For the fixed-initial-condition u(t) reproduction, all numerical comparisons keep the same initial condition and compare time-dependent controls u(t). Several related-work papers in the manuscript target value-function or feedback formulations; those are important related formulations, but they are not the same numerical task as this u(t) reproduction.")
     add_table(
         doc,
-        ["reference", "learned object / formulation", "relation to this report"],
+        ["method family", "learned object / formulation", "relation to this report"],
         [
-            ["HJB / BSDE methods [1,2,7]", "value function V(t,N) or HJB PDE solution", "state-domain feedback/value formulation; not a direct u(t) baseline"],
-            ["Neural-PMP [3]", "control sequence via forward rollout, backward costate recursion, and Hamiltonian-gradient updates", "closest related-work baseline for the present u(t) experiment; implemented numerically below"],
-            ["DeepONet / PINN policy iteration [5,6]", "policy evaluation and improvement for HJB-type equations", "methodological reference for feedback/value learning; separate from this fixed-trajectory u(t) layer"],
+            ["HJB / BSDE methods [1,2,7]", "value function V(t,N) or HJB PDE solution", "state-domain feedback/value formulation; not a direct numerical comparison for fixed u(t)"],
+            ["Neural-PMP [3]", "control sequence via forward rollout, backward costate recursion, and Hamiltonian-gradient updates", "closest related-work method for the present u(t) experiment; implemented numerically below"],
+            ["DeepONet / PINN policy iteration [5,6]", "policy evaluation and improvement for HJB-type equations", "related feedback/value-learning formulation; separate from this fixed-trajectory u(t) layer"],
             ["classical chemotherapy OC [4]", "PMP and singular-control structure", "source of the singular-control condition used in the manuscript"],
         ],
         [1.55, 2.3, 2.6],
         font_size=7.8,
     )
     doc.add_page_break()
-    add_para(doc, "Among these, [3] is the closest apples-to-apples numerical comparison. Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP method first learns a differentiable dynamics model and then updates a control sequence using PMP gradients. Since the dynamics are already known in the manuscript setting, we compare against the oracle-dynamics controller stage: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence.")
+    add_para(doc, "Among these, [3] is the closest numerical comparison. Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP method first learns a differentiable dynamics model and then updates a control sequence using PMP gradients. Since the dynamics are already known in the manuscript setting, we compare with the corresponding known-dynamics u(t) update: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence.")
     add_table(
         doc,
-        ["method", "training / update criterion", "objective J", "J - direct", "PMP/KKT gap", "note"],
+        ["method", "optimization condition", "objective J", "J - direct J", "PMP/KKT gap", "role"],
         [
-            ["direct grid reference", "direct minimization of discretized J", "386.438", "0.000", "1.016", "cost reference"],
-            ["Transformer u(t), 6 runs", "paper PMP/KKT optimality-gap loss", "386.738 +/- 0.045", "0.300 +/- 0.045", "0.463 +/- 0.148", "main reproduction"],
-            ["best Transformer run", "same as above", "386.695", "0.257", "0.207", "best reported run"],
-            ["Neural-PMP [3]", "Hamiltonian-gradient update with known dynamics", "386.986", "0.548", "8.574", "related-work baseline"],
-            ["constant u=1.5", "fixed control", "400.403", "13.965", "76.556", "scale check"],
-            ["repository demo output", "provided s.csv", "422.670", "36.232", "433.349", "original demo artifact"],
+            ["direct minimization of J", "minimize discretized J on a time mesh", "386.438", "0.000", "1.016", "cost comparison"],
+            ["Transformer u(t), 6 trainings", "manuscript PMP/KKT optimality-gap loss", "386.738 +/- 0.045", "0.300 +/- 0.045", "0.463 +/- 0.148", "reproduction"],
+            ["best Transformer training", "same as above", "386.695", "0.257", "0.207", "best Transformer result"],
+            ["Neural-PMP [3]", "PMP-gradient update for u(t) with known dynamics", "386.986", "0.548", "8.574", "related-work comparison"],
+            ["constant u=1.5", "fixed control", "400.403", "13.965", "76.556", "simple control"],
+            ["provided repository output", "provided s.csv", "422.670", "36.232", "433.349", "provided output file"],
         ],
         [1.3, 1.95, 0.8, 0.8, 0.8, 1.0],
         font_size=7.35,
     )
-    add_note(doc, "* Objective J is computed after fixing u(t), reintegrating N(t) with the same fine-step fourth-order Runge-Kutta evaluator, and applying the manuscript objective definition. The direct row is a numerical cost reference, not a neural model.")
-    add_para(doc, "The Transformer runs are stable across random seeds and remain close to the direct cost reference. Compared with the Neural-PMP controller-stage baseline [3], the Transformer has both lower objective J and a smaller PMP/KKT diagnostic gap in this fixed-initial-condition u(t) experiment.")
+    add_note(doc, "* For comparison, after u(t) is fixed, N(t) and J are recomputed on a common fine time mesh using fourth-order Runge-Kutta. This is only the numerical evaluation of the manuscript objective.")
+    add_para(doc, "The Transformer trainings are stable across independent initializations and remain close to direct minimization of J. Compared with Neural-PMP [3], the Transformer has both lower objective J and a smaller PMP/KKT optimality gap in this fixed-initial-condition u(t) experiment.")
     add_figure(
         doc,
         "paper_runs/first_layer_ut_benchmark/transformer_seed_loss_trajectories.png",
-        caption="Figure 5. Multi-seed convergence of the Transformer u(t) PMP/KKT training loss.",
+        caption="Figure 5. Convergence of the Transformer u(t) PMP/KKT training loss across independent trainings.",
         width=6.25,
     )
     add_figure(
         doc,
-        "paper_runs/first_layer_ut_benchmark/first_layer_objective_gap_closeup.png",
-        caption="Figure 6. Objective gap relative to the direct cost reference for the main u(t) comparison.",
+        "paper_runs/first_layer_ut_benchmark/objective_gap_comparison.png",
+        caption="Figure 6. Difference in J from direct minimization for the main u(t) comparison.",
         width=6.25,
     )
     add_figure(
         doc,
         "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png",
-        caption="Figure 7. Neural-PMP controller-stage baseline [3]: control sequence and resulting state trajectory.",
+        caption="Figure 7. Neural-PMP [3]: control sequence and resulting state trajectory.",
         width=6.35,
     )
     add_figure(
         doc,
         "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png",
-        caption="Figure 8. Neural-PMP controller-stage baseline [3]: selected-run training trajectories.",
+        caption="Figure 8. Neural-PMP [3]: selected training trajectories.",
         width=6.35,
     )
 
-    add_heading(doc, "5. Sensitivity Experiments")
-    add_para(doc, "We also tested whether the u(t) reproduction is tied to the nominal parameter choice. In each row below, one parameter is changed while the others remain at the reported setting. The Transformer result is averaged over three random seeds; Neural-PMP [3] is the best controller-stage run from the same search protocol.")
+    add_heading(doc, "5. Parameter Sensitivity")
+    add_para(doc, "We also tested whether the u(t) reproduction is tied to the nominal parameter choice. In each row below, one parameter is changed while the others remain at the reported setting. The Transformer result is averaged over three independent trainings; Neural-PMP [3] is the best result from the same search protocol.")
     add_table(
         doc,
         ["condition", "direct J", "Transformer J", "Transformer gap", "Neural-PMP gap"],
         [
-            ["baseline", "386.706", "386.826 +/- 0.052", "0.031%", "0.240%"],
+            ["nominal", "386.706", "386.826 +/- 0.052", "0.031%", "0.240%"],
             ["beta=0.05", "325.457", "325.713 +/- 0.030", "0.079%", "0.169%"],
             ["beta=0.20", "444.860", "444.923 +/- 0.006", "0.014%", "0.160%"],
             ["gamma=10", "230.385", "230.485 +/- 0.011", "0.044%", "0.168%"],
@@ -405,23 +405,23 @@ def build_en() -> Path:
         [1.15, 0.9, 1.45, 1.15, 1.15],
         font_size=7.45,
     )
-    add_note(doc, "* In this sensitivity table, the direct row is an n=400 grid cost reference evaluated with the same RK4 evaluator. The small negative alpha=0.5 gap is within this reference tolerance and should be read as a numerical tie, not as beating the optimum.")
-    add_para(doc, "Across these one-factor tests, the Transformer remains within about 0.09% of the direct reference. Neural-PMP [3] is also close in objective value, but the Transformer is consistently closer to the direct reference and has a smaller PMP/KKT diagnostic gap.")
+    add_note(doc, "* In this sensitivity table, direct J is obtained by direct minimization on an n=400 time mesh and then recomputed on the common fine time mesh. The small negative alpha=0.5 gap is within this numerical tolerance and should be read as a tie, not as beating the optimum.")
+    add_para(doc, "Across these one-factor tests, the Transformer remains within about 0.09% of direct minimization. Neural-PMP [3] is also close in objective value, but the Transformer is consistently closer to direct minimization and has a smaller PMP/KKT optimality gap.")
     add_figure(
         doc,
         "paper_runs/ut_sensitivity_sweep/sensitivity_relative_gap_zoom.png",
-        caption="Figure 9. Objective gap relative to the direct reference across parameter and initial-condition changes.",
+        caption="Figure 9. Difference in objective J from direct minimization across parameter and initial-condition changes.",
         width=6.35,
     )
     add_figure(
         doc,
         "paper_runs/ut_sensitivity_sweep/sensitivity_pmp_gap.png",
-        caption="Figure 10. PMP/KKT diagnostic gap across the same sensitivity conditions.",
+        caption="Figure 10. PMP/KKT optimality gap across the same sensitivity conditions.",
         width=6.35,
     )
 
     add_heading(doc, "6. Conclusion")
-    add_para(doc, "The requested first-layer u(t) reproduction is complete. The Transformer control trained with the manuscript's PMP/KKT optimality-gap loss is smooth, satisfies the control bounds, and reduces the training optimality gap from about 76 to 0.026 in the best run. Across six Transformer runs in the nominal setting, the common-evaluator objective is 386.738 +/- 0.045, close to the direct cost reference 386.438 and better than the Neural-PMP [3] controller-stage baseline. The sensitivity sweep further shows that the same u(t) training procedure remains close to the direct reference under changes in beta, gamma, alpha, and N0. The state-dependent extension u(t,N) is left for separate work because it requires different optimality conditions.")
+    add_para(doc, "The requested u(t) reproduction is complete. The Transformer control trained with the manuscript's PMP/KKT optimality-gap loss is smooth, satisfies the control bounds, and reduces the training optimality gap from about 76 to 0.026 in the best training. Across six Transformer trainings in the nominal setting, the recomputed objective is 386.738 +/- 0.045, close to direct minimization of J at 386.438 and better than Neural-PMP [3] in this comparison. The parameter sensitivity experiments further show that the same u(t) training procedure remains close to direct minimization under changes in beta, gamma, alpha, and N0. The state-dependent extension u(t,N) is left for separate work because it requires different optimality conditions.")
     out = REPORTS / "ut_reproduction_report.docx"
     doc.save(out)
     return out
@@ -429,7 +429,7 @@ def build_en() -> Path:
 
 def build_zh() -> Path:
     doc = setup_doc()
-    add_title(doc, "Transformer u(t) 第一层实验报告", "固定初始条件下的时间相关控制，使用 PMP/KKT optimality gap 训练")
+    add_title(doc, "Transformer u(t) 复现实验报告", "固定初始条件下满足 PMP/KKT 最优性条件的时间相关控制")
     add_para(doc, "本报告只关注固定初始条件下的时间相关控制策略 u_theta(t): [0,T] -> [0,u_max]。不包含状态相关反馈控制 u(t,N)，因为该情形的最优性条件不同。")
 
     add_heading(doc, "1. 模型和训练目标")
@@ -478,7 +478,7 @@ def build_zh() -> Path:
             ["total training loss / PMP-KKT optimality gap", "0.02637"],
             ["singular-condition training loss", "0.00167"],
             ["non-singular Hamiltonian-minimization training loss", "0.02471"],
-            ["objective J on the training grid", "384.76"],
+            ["objective J during training", "384.76"],
             ["range and mean of u_theta(t)", "min 1.038, max 2.758, mean 1.372"],
             ["terminal mean state", "1.207"],
         ],
@@ -492,7 +492,7 @@ def build_zh() -> Path:
         caption="图 3. 总 PMP/KKT optimality gap 以及 singular、non-singular 两个组成部分的训练轨迹。",
         width=6.35,
     )
-    add_para(doc, "下面的逐点诊断图使用平滑权重 q(t) 区分两类区域：当 psi(t) 接近 0 时，主要看 singular-condition error；当 psi(t) 远离 0 时，主要看边界 KKT error。")
+    add_para(doc, "下面的逐点条件图使用平滑权重 q(t) 区分两类区域：当 psi(t) 接近 0 时，主要看 singular-condition error；当 psi(t) 远离 0 时，主要看边界 KKT error。")
     add_figure(
         doc,
         "paper_runs/open_loop_ut_report/pmp_condition_components_clean.png",
@@ -500,13 +500,13 @@ def build_zh() -> Path:
         width=6.35,
     )
 
-    add_heading(doc, "4. 第一层 Benchmark 和 Related Work 对比")
-    add_para(doc, "这一层实验固定初始条件，只比较时间相关控制 u(t)。论文 related work 里的若干方法面向 value function 或 feedback formulation，它们是重要的方法参考，但并不是和本报告完全相同的 u(t) 数值任务。")
+    add_heading(doc, "4. Related Work 对比")
+    add_para(doc, "本实验固定初始条件，只比较时间相关控制 u(t)。论文 related work 里的若干方法面向 value function 或 feedback formulation，它们是重要的相关 formulation，但并不是和本报告完全相同的 u(t) 数值任务。")
     add_table(
         doc,
         ["引用", "学习对象 / formulation", "与本报告的关系"],
         [
-            ["HJB / BSDE methods [1,2,7]", "value function V(t,N) 或 HJB PDE solution", "面向 state-domain feedback/value formulation；不是直接的 u(t) baseline"],
+            ["HJB / BSDE methods [1,2,7]", "value function V(t,N) 或 HJB PDE solution", "面向 state-domain feedback/value formulation；不是固定 u(t) 的直接数值对比"],
             ["Neural-PMP [3]", "forward rollout、backward costate recursion 和 Hamiltonian-gradient 更新控制序列", "与本报告 u(t) 实验最接近；下面给数值对比"],
             ["DeepONet / PINN policy iteration [5,6]", "HJB 型方程的 policy evaluation / improvement", "适合作为 feedback/value learning 的方法参考；属于另一层问题"],
             ["classical chemotherapy OC [4]", "PMP 和 singular-control 结构", "提供论文使用的 singular-control 条件"],
@@ -515,55 +515,55 @@ def build_zh() -> Path:
         font_size=7.6,
     )
     doc.add_page_break()
-    add_para(doc, "其中 [3] 是最接近同任务的数值比较。这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文 Neural-PMP 方法先学习可微动力学模型，再用 PMP gradient 更新控制序列。由于本报告中的动力学已知，我们比较的是其 oracle-dynamics controller stage：正向求解状态、反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。")
+    add_para(doc, "其中 [3] 是最接近同任务的数值比较。这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文 Neural-PMP 方法先学习可微动力学模型，再用 PMP gradient 更新控制序列。由于本报告中的动力学已知，我们比较的是相应的 known-dynamics u(t) 更新：正向求解状态、反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。")
     add_table(
         doc,
-        ["方法", "训练/更新准则", "目标函数 J", "J - direct", "PMP/KKT gap", "说明"],
+        ["方法", "优化条件", "目标函数 J", "J - direct J", "PMP/KKT gap", "说明"],
         [
-            ["direct grid reference", "直接最小化离散 J", "386.438", "0.000", "1.016", "成本参考"],
-            ["Transformer u(t), 6 runs", "论文 PMP/KKT optimality-gap loss", "386.738 +/- 0.045", "0.300 +/- 0.045", "0.463 +/- 0.148", "主复现实验"],
-            ["best Transformer run", "同上", "386.695", "0.257", "0.207", "最优 run"],
-            ["Neural-PMP [3]", "已知动力学下的 Hamiltonian-gradient 控制更新", "386.986", "0.548", "8.574", "related-work baseline"],
-            ["constant u=1.5", "固定控制", "400.403", "13.965", "76.556", "尺度参考"],
-            ["repository demo output", "提供的 s.csv", "422.670", "36.232", "433.349", "原始 demo artifact"],
+            ["direct minimization of J", "在时间网格上直接最小化离散 J", "386.438", "0.000", "1.016", "成本比较"],
+            ["Transformer u(t), 6 trainings", "论文 PMP/KKT optimality-gap loss", "386.738 +/- 0.045", "0.300 +/- 0.045", "0.463 +/- 0.148", "复现实验"],
+            ["best Transformer training", "同上", "386.695", "0.257", "0.207", "最优 Transformer 结果"],
+            ["Neural-PMP [3]", "已知动力学下的 PMP-gradient u(t) 更新", "386.986", "0.548", "8.574", "related-work 比较"],
+            ["constant u=1.5", "固定控制", "400.403", "13.965", "76.556", "简单控制"],
+            ["仓库提供的输出", "提供的 s.csv", "422.670", "36.232", "433.349", "提供的输出文件"],
         ],
         [1.3, 1.95, 0.8, 0.8, 0.8, 1.0],
         font_size=7.25,
     )
-    add_note(doc, "* 表中的 J 是在固定 u(t) 后，用同一个细步长四阶 Runge-Kutta evaluator 重新求解 N(t)，再按论文目标函数定义计算得到。direct 行是成本参考解，不是神经网络模型。")
-    add_para(doc, "Transformer 在多个随机种子下结果稳定，并且接近 direct cost reference。和 Neural-PMP controller-stage baseline [3] 相比，在这个固定初始条件的 u(t) 实验中，Transformer 同时具有更低的目标函数 J 和更小的 PMP/KKT diagnostic gap。")
+    add_note(doc, "* 为了公平比较，固定 u(t) 后，统一在细时间网格上用四阶 Runge-Kutta 重新计算 N(t) 和 J；这只是论文目标函数的数值评估方式。")
+    add_para(doc, "Transformer 在多个独立初始化下结果稳定，并且接近直接最小化 J 得到的数值结果。和 Neural-PMP [3] 相比，在这个固定初始条件的 u(t) 实验中，Transformer 同时具有更低的目标函数 J 和更小的 PMP/KKT optimality gap。")
     add_figure(
         doc,
         "paper_runs/first_layer_ut_benchmark/transformer_seed_loss_trajectories.png",
-        caption="图 5. Transformer u(t) 在多个随机种子下的 PMP/KKT training loss 收敛曲线。",
+        caption="图 5. Transformer u(t) 在多个独立训练下的 PMP/KKT training loss 收敛曲线。",
         width=6.25,
     )
     add_figure(
         doc,
-        "paper_runs/first_layer_ut_benchmark/first_layer_objective_gap_closeup.png",
-        caption="图 6. 主 u(t) 对比中，相对于 direct cost reference 的目标函数差值。",
+        "paper_runs/first_layer_ut_benchmark/objective_gap_comparison.png",
+        caption="图 6. 主 u(t) 对比中，相对于直接最小化 J 的目标函数差值。",
         width=6.25,
     )
     add_figure(
         doc,
         "paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png",
-        caption="图 7. Neural-PMP controller-stage baseline [3] 的控制序列和对应状态轨迹。",
+        caption="图 7. Neural-PMP [3] 的控制序列和对应状态轨迹。",
         width=6.35,
     )
     add_figure(
         doc,
         "paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png",
-        caption="图 8. Neural-PMP controller-stage baseline [3] 的 selected-run 训练轨迹。",
+        caption="图 8. Neural-PMP [3] 的训练轨迹。",
         width=6.35,
     )
 
-    add_heading(doc, "5. 参数和初始条件敏感性实验")
-    add_para(doc, "我们进一步检查 u(t) 复现结果是否只对名义参数有效。下表每次只改变一个参数，其他参数保持报告中的设置。Transformer 结果为三个随机种子的平均值；Neural-PMP [3] 为同一搜索设置下的 best controller-stage run。")
+    add_heading(doc, "5. 参数敏感性实验")
+    add_para(doc, "我们进一步检查 u(t) 复现结果是否只对名义参数有效。下表每次只改变一个参数，其他参数保持报告中的设置。Transformer 结果为三个独立训练的平均值；Neural-PMP [3] 为同一搜索设置下的最好结果。")
     add_table(
         doc,
         ["condition", "direct J", "Transformer J", "Transformer gap", "Neural-PMP gap"],
         [
-            ["baseline", "386.706", "386.826 +/- 0.052", "0.031%", "0.240%"],
+            ["nominal", "386.706", "386.826 +/- 0.052", "0.031%", "0.240%"],
             ["beta=0.05", "325.457", "325.713 +/- 0.030", "0.079%", "0.169%"],
             ["beta=0.20", "444.860", "444.923 +/- 0.006", "0.014%", "0.160%"],
             ["gamma=10", "230.385", "230.485 +/- 0.011", "0.044%", "0.168%"],
@@ -576,23 +576,23 @@ def build_zh() -> Path:
         [1.15, 0.9, 1.45, 1.15, 1.15],
         font_size=7.25,
     )
-    add_note(doc, "* 这个敏感性实验中的 direct 行是 n=400 网格成本参考，并统一用 RK4 evaluator 重新计算。alpha=0.5 的小负 gap 在该参考误差范围内，应理解为数值上持平，不是超过真正最优解。")
-    add_para(doc, "在这些单因素变化中，Transformer 相对 direct reference 的差距保持在约 0.09% 以内。Neural-PMP [3] 的目标函数值也接近，但 Transformer 整体更接近 direct reference，并且 PMP/KKT diagnostic gap 更小。")
+    add_note(doc, "* 这个敏感性实验中的 direct J 是在 n=400 时间网格上直接最小化 J 后，再统一在细时间网格上重新计算得到。alpha=0.5 的小负 gap 在数值误差范围内，应理解为持平，不是超过真正最优解。")
+    add_para(doc, "在这些单因素变化中，Transformer 相对直接最小化 J 的差距保持在约 0.09% 以内。Neural-PMP [3] 的目标函数值也接近，但 Transformer 整体更接近直接最小化 J，并且 PMP/KKT optimality gap 更小。")
     add_figure(
         doc,
         "paper_runs/ut_sensitivity_sweep/sensitivity_relative_gap_zoom.png",
-        caption="图 9. 不同参数和初始条件下，相对于 direct reference 的目标函数差距。",
+        caption="图 9. 不同参数和初始条件下，相对于直接最小化 J 的目标函数差距。",
         width=6.35,
     )
     add_figure(
         doc,
         "paper_runs/ut_sensitivity_sweep/sensitivity_pmp_gap.png",
-        caption="图 10. 同一组敏感性条件下的 PMP/KKT diagnostic gap。",
+        caption="图 10. 同一组敏感性条件下的 PMP/KKT optimality gap。",
         width=6.35,
     )
 
     add_heading(doc, "6. 结论")
-    add_para(doc, "第一层 u(t) 复现实验已经完成。使用论文中的 PMP/KKT optimality-gap loss 训练得到的 Transformer 控制轨迹平滑并满足控制约束；best run 的 training optimality gap 从约 76 降到 0.026。六个 Transformer run 在名义设置下、同一 evaluator 下的目标函数为 386.738 +/- 0.045，接近 direct cost reference 386.438，并优于本设置下的 Neural-PMP [3] controller-stage baseline。敏感性实验进一步显示，在改变 beta、gamma、alpha 和 N0 时，同一 u(t) 训练流程仍然接近 direct reference。本报告不包含状态相关扩展 u(t,N)。")
+    add_para(doc, "u(t) 复现实验已经完成。使用论文中的 PMP/KKT optimality-gap loss 训练得到的 Transformer 控制轨迹平滑并满足控制约束；best training 的 optimality gap 从约 76 降到 0.026。六个 Transformer training 在名义设置下重新计算的目标函数为 386.738 +/- 0.045，接近直接最小化 J 得到的 386.438，并优于本设置下的 Neural-PMP [3] 比较结果。参数敏感性实验进一步显示，在改变 beta、gamma、alpha 和 N0 时，同一 u(t) 训练流程仍然接近直接最小化 J。本报告不包含状态相关扩展 u(t,N)。")
     out = REPORTS / "open_loop_ut_reproduction_report_zh.docx"
     doc.save(out)
     return out

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-factor-at-a-time sensitivity sweep for the first-layer u(t) experiment."""
+"""One-factor-at-a-time parameter sensitivity experiments for u(t)."""
 
 from __future__ import annotations
 
@@ -367,7 +367,7 @@ def plot(summary: List[Dict[str, object]], out_dir: Path) -> None:
         if row["condition"] not in cond_order:
             cond_order.append(str(row["condition"]))
     label_map = {
-        "baseline": "baseline",
+        "baseline": "nominal",
         "beta_0p05": "beta=0.05",
         "beta_0p20": "beta=0.20",
         "gamma_10": "gamma=10",
@@ -393,8 +393,8 @@ def plot(summary: List[Dict[str, object]], out_dir: Path) -> None:
         ax.bar(x + (j - 1) * width, vals, width=width, yerr=errs, capsize=2, label=method, color=colors[method])
     ax.axhline(0.0, color="#333333", lw=0.8)
     ax.set_xticks(x, cond_labels, rotation=0)
-    ax.set_ylabel("relative objective gap to direct reference (%)")
-    ax.set_title("u(t) sensitivity sweep")
+    ax.set_ylabel("relative difference from direct minimization (%)")
+    ax.set_title("Parameter sensitivity for u(t)")
     ax.legend(frameon=False, ncol=3)
     ax.grid(True, axis="y", alpha=0.25)
     fig.tight_layout()
@@ -414,8 +414,8 @@ def plot(summary: List[Dict[str, object]], out_dir: Path) -> None:
         ax.bar(x + (j - 0.5) * zoom_width, vals, width=zoom_width, yerr=errs, capsize=2, label=method, color=colors[method])
     ax.axhline(0.0, color="#333333", lw=0.8)
     ax.set_xticks(x, cond_labels, rotation=0)
-    ax.set_ylabel("relative objective gap to direct reference (%)")
-    ax.set_title("u(t) sensitivity sweep: close-up")
+    ax.set_ylabel("relative difference from direct minimization (%)")
+    ax.set_title("Objective difference across parameter changes")
     ax.legend(frameon=False, ncol=2)
     ax.grid(True, axis="y", alpha=0.25)
     fig.tight_layout()
@@ -423,15 +423,15 @@ def plot(summary: List[Dict[str, object]], out_dir: Path) -> None:
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(10.2, 4.4), dpi=190)
-    for method in ["direct reference", "Transformer", "Neural-PMP [3]"]:
+    for method in ["direct minimization", "Transformer", "Neural-PMP [3]"]:
         vals = []
         for cond in cond_order:
             row = next((r for r in summary if r["condition"] == cond and r["method"] == method), None)
             vals.append(np.nan if row is None else float(row["pmp_gap_mean"]))
         ax.plot(cond_labels, vals, marker="o", lw=2.0, label=method)
     ax.set_yscale("log")
-    ax.set_ylabel("PMP/KKT diagnostic gap")
-    ax.set_title("Optimality-gap diagnostic across sensitivity conditions")
+    ax.set_ylabel("PMP/KKT optimality gap")
+    ax.set_title("PMP/KKT optimality gap across parameter changes")
     ax.legend(frameon=False)
     ax.grid(True, which="both", axis="y", alpha=0.25)
     fig.tight_layout()
@@ -475,7 +475,7 @@ def main() -> None:
         print(f"=== condition {cond.tag} beta={cond.beta} gamma={cond.gamma} alpha={cond.alpha} n0={cond.n0} ===", flush=True)
         direct_sol = run_direct(cond, args)
         t_d, u_d = read_solution_npz(direct_sol)
-        direct_row = evaluate_control(cond, "direct reference", "direct_n400", t_d, u_d, args.n_ref, None)
+        direct_row = evaluate_control(cond, "direct minimization", "direct_n400", t_d, u_d, args.n_ref, None)
         direct_J = float(direct_row["J_ref"])
         direct_row["J_gap_to_direct"] = 0.0
         direct_row["relative_gap_to_direct"] = 0.0

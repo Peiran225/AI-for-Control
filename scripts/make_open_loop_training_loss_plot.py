@@ -92,9 +92,9 @@ def main() -> None:
     ax2.set_xlabel("epoch")
 
     ax_diag = ax2.twinx()
-    ax_diag.plot(epoch, moving_average(psi_mean_abs), color="#f58518", lw=2.3, label=r"mean $|\psi(t)|$ (switching residual)")
+    ax_diag.plot(epoch, moving_average(psi_mean_abs), color="#f58518", lw=2.3, label=r"mean $|\psi(t)|$")
     ax_diag.plot(epoch, moving_average(q_mean), color="#54a24b", lw=2.3, label=r"mean $q(t)$ (singular weight)")
-    ax_diag.set_ylabel("diagnostics")
+    ax_diag.set_ylabel("auxiliary quantity")
     ax_diag.set_ylim(-0.15, max(4.7, float(np.nanmax(psi_mean_abs))) + 0.35)
 
     handles, labels = ax2.get_legend_handles_labels()

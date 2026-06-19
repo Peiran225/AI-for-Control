@@ -83,7 +83,7 @@ def main() -> None:
     ax.set_xlabel("time")
     ax.grid(True, alpha=0.25)
     ax2 = ax.twinx()
-    ax2.plot(t, q, color="#8c564b", lw=2.0, label="singular gate $q(t)$")
+    ax2.plot(t, q, color="#8c564b", lw=2.0, label="singular weight $q(t)$")
     ax2.set_ylabel("$q(t)$")
     lines, labels = ax.get_legend_handles_labels()
     lines2, labels2 = ax2.get_legend_handles_labels()

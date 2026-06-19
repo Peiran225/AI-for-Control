@@ -1,4 +1,4 @@
-# Transformer \(u(t)\) First-Layer Experiment Report
+# Transformer \(u(t)\) Reproduction Report
 
 This report focuses on the manuscript's fixed-initial-condition, time-dependent control strategy
 
@@ -83,7 +83,7 @@ The table reports the smallest recorded training loss. In this experiment, the t
 | total training loss / PMP-KKT optimality gap | 0.02637 |
 | singular-condition training loss | 0.00167 |
 | non-singular Hamiltonian-minimization training loss | 0.02471 |
-| manuscript objective \(J\), evaluated on the training grid | 384.76 |
+| manuscript objective \(J\), during training | 384.76 |
 | range and mean of \(u_\theta(t)\) | min 1.038, max 2.758, mean 1.372 |
 | terminal mean state | 1.207 |
 
@@ -93,59 +93,59 @@ The trajectory separates the two optimality conditions in the manuscript. When \
 
 *Figure 3. Training trajectories of the total PMP/KKT optimality gap and its singular and non-singular components.*
 
-The next plot shows pointwise PMP/KKT diagnostics along the final learned trajectory.
+The next plot shows pointwise PMP/KKT condition components along the final learned trajectory.
 
 ![Pointwise PMP/KKT components](../paper_runs/open_loop_ut_report/pmp_condition_components_clean.png)
 
 *Figure 4. Pointwise singular-condition error and boundary KKT error along the final learned trajectory.*
 
-## 4. First-Layer Benchmark and Related Work
+## 4. Comparison with Related Work
 
-For this first-layer experiment, all numerical comparisons keep the same fixed initial condition and compare time-dependent controls \(u(t)\). Several related-work papers in the manuscript target value-function or feedback formulations; those are important method references, but they are not the same numerical task as this \(u(t)\) reproduction.
+For the fixed-initial-condition \(u(t)\) reproduction, all numerical comparisons keep the same initial condition and compare time-dependent controls \(u(t)\). Several related-work papers in the manuscript target value-function or feedback formulations; those are important related formulations, but they are not the same numerical task as this \(u(t)\) reproduction.
 
-| reference | learned object / formulation | relation to this report |
+| method family | learned object / formulation | relation to this report |
 |---|---|---|
-| HJB / BSDE methods [1,2,7] | value function \(V(t,N)\) or HJB PDE solution | state-domain feedback/value formulation; not a direct \(u(t)\) baseline |
-| Neural-PMP [3] | control sequence via forward rollout, backward costate recursion, and Hamiltonian-gradient updates | closest related-work baseline for the present \(u(t)\) experiment |
-| DeepONet / PINN policy iteration [5,6] | policy evaluation and improvement for HJB-type equations | methodological reference for feedback/value learning; separate from this fixed-trajectory \(u(t)\) layer |
+| HJB / BSDE methods [1,2,7] | value function \(V(t,N)\) or HJB PDE solution | state-domain feedback/value formulation; not a direct numerical comparison for fixed \(u(t)\) |
+| Neural-PMP [3] | control sequence via forward rollout, backward costate recursion, and Hamiltonian-gradient updates | closest related-work method for the present \(u(t)\) experiment |
+| DeepONet / PINN policy iteration [5,6] | policy evaluation and improvement for HJB-type equations | related feedback/value-learning formulation; separate from this fixed-trajectory \(u(t)\) layer |
 | classical chemotherapy OC [4] | PMP and singular-control structure | source of the singular-control condition used in the manuscript |
 
-For [3], we compare against the oracle-dynamics controller stage: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence.
+For [3], we compare with the corresponding known-dynamics \(u(t)\) update: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence.
 
-| method | training / update criterion | objective \(J\)[^1] | \(J-\)direct | PMP/KKT gap | note |
+| method | optimization condition | objective \(J\)[^1] | \(J-\)direct \(J\) | PMP/KKT gap | role |
 |---|---|---:|---:|---:|---|
-| direct grid reference | direct minimization of discretized \(J\) | 386.438 | 0.000 | 1.016 | cost reference |
-| Transformer \(u(t)\), 6 runs | paper PMP/KKT optimality-gap loss | 386.738 +/- 0.045 | 0.300 +/- 0.045 | 0.463 +/- 0.148 | main reproduction |
-| best Transformer run | same as above | 386.695 | 0.257 | 0.207 | best reported run |
-| Neural-PMP [3] | Hamiltonian-gradient update with known dynamics | 386.986 | 0.548 | 8.574 | related-work baseline |
-| constant \(u=1.5\) | fixed control | 400.403 | 13.965 | 76.556 | scale check |
-| repository demo output | provided `s.csv` | 422.670 | 36.232 | 433.349 | original demo artifact |
+| direct minimization of \(J\) | minimize discretized \(J\) on a time mesh | 386.438 | 0.000 | 1.016 | cost comparison |
+| Transformer \(u(t)\), six trainings | manuscript PMP/KKT optimality-gap loss | 386.738 +/- 0.045 | 0.300 +/- 0.045 | 0.463 +/- 0.148 | reproduction |
+| best Transformer training | same as above | 386.695 | 0.257 | 0.207 | best Transformer result |
+| Neural-PMP [3] | PMP-gradient update for \(u(t)\) with known dynamics | 386.986 | 0.548 | 8.574 | related-work comparison |
+| constant \(u=1.5\) | fixed control | 400.403 | 13.965 | 76.556 | simple control |
+| provided repository output | provided `s.csv` | 422.670 | 36.232 | 433.349 | provided output file |
 
-[^1]: The \(J\) values are computed after fixing \(u(t)\), reintegrating \(N(t)\) with the same fine-step fourth-order Runge-Kutta evaluator, and applying the manuscript objective definition.
+[^1]: For comparison, after \(u(t)\) is fixed, \(N(t)\) and \(J\) are recomputed on a common fine time mesh using fourth-order Runge-Kutta. This is only the numerical evaluation of the manuscript objective.
 
-![Transformer multi-seed convergence](../paper_runs/first_layer_ut_benchmark/transformer_seed_loss_trajectories.png)
+![Transformer independent training convergence](../paper_runs/first_layer_ut_benchmark/transformer_seed_loss_trajectories.png)
 
-*Figure 5. Multi-seed convergence of the Transformer \(u(t)\) PMP/KKT training loss.*
+*Figure 5. Convergence of the Transformer \(u(t)\) PMP/KKT training loss across independent trainings.*
 
-![Objective gap comparison](../paper_runs/first_layer_ut_benchmark/first_layer_objective_gap_closeup.png)
+![Objective gap comparison](../paper_runs/first_layer_ut_benchmark/objective_gap_comparison.png)
 
-*Figure 6. Objective gap relative to the direct cost reference for the main \(u(t)\) comparison.*
+*Figure 6. Difference in \(J\) from direct minimization for the main \(u(t)\) comparison.*
 
 ![Neural-PMP control and state rollout](../paper_runs/neural_pmp_baseline_beta01/neural_pmp_ut_nt.png)
 
-*Figure 7. Neural-PMP controller-stage baseline [3]: control sequence and resulting state trajectory.*
+*Figure 7. Neural-PMP [3]: control sequence and resulting state trajectory.*
 
 ![Neural-PMP training curve](../paper_runs/neural_pmp_baseline_beta01/neural_pmp_training_curve.png)
 
-*Figure 8. Neural-PMP controller-stage baseline [3]: selected-run training trajectories.*
+*Figure 8. Neural-PMP [3]: selected training trajectories.*
 
-## 5. Sensitivity Experiments
+## 5. Parameter Sensitivity
 
-We also tested whether the \(u(t)\) reproduction is tied to the nominal parameter choice. In each row below, one parameter is changed while the others remain at the reported setting. The Transformer result is averaged over three random seeds; Neural-PMP [3] is the best controller-stage run from the same search protocol.
+We also tested whether the \(u(t)\) reproduction is tied to the nominal parameter choice. In each row below, one parameter is changed while the others remain at the reported setting. The Transformer result is averaged over three independent trainings; Neural-PMP [3] is the best result from the same search protocol.
 
 | condition | direct \(J\) | Transformer \(J\) | Transformer gap | Neural-PMP gap |
 |---|---:|---:|---:|---:|
-| baseline | 386.706 | 386.826 +/- 0.052 | 0.031% | 0.240% |
+| nominal | 386.706 | 386.826 +/- 0.052 | 0.031% | 0.240% |
 | \(\beta=0.05\) | 325.457 | 325.713 +/- 0.030 | 0.079% | 0.169% |
 | \(\beta=0.20\) | 444.860 | 444.923 +/- 0.006 | 0.014% | 0.160% |
 | \(\gamma=10\) | 230.385 | 230.485 +/- 0.011 | 0.044% | 0.168% |
@@ -155,18 +155,18 @@ We also tested whether the \(u(t)\) reproduction is tied to the nominal paramete
 | \(N_0=5\) | 371.118 | 371.168 +/- 0.037 | 0.013% | 0.220% |
 | \(N_0=20\) | 404.839 | 405.201 +/- 0.074 | 0.089% | 0.174% |
 
-In this sensitivity table, the direct row is an \(n=400\) grid cost reference evaluated with the same RK4 evaluator. The small negative \(\alpha=0.5\) gap is within this reference tolerance and should be read as a numerical tie, not as beating the optimum.
+In this sensitivity table, direct \(J\) is obtained by direct minimization on an \(n=400\) time mesh and then recomputed on the common fine time mesh. The small negative \(\alpha=0.5\) gap is within this numerical tolerance and should be read as a tie, not as beating the optimum.
 
-Across these one-factor tests, the Transformer remains within about 0.09% of the direct reference. Neural-PMP [3] is also close in objective value, but the Transformer is consistently closer to the direct reference and has a smaller PMP/KKT diagnostic gap.
+Across these one-factor tests, the Transformer remains within about 0.09% of direct minimization. Neural-PMP [3] is also close in objective value, but the Transformer is consistently closer to direct minimization and has a smaller PMP/KKT optimality gap.
 
-![Sensitivity objective gaps](../paper_runs/ut_sensitivity_sweep/sensitivity_relative_gap_zoom.png)
+![Parameter sensitivity objective gaps](../paper_runs/ut_sensitivity_sweep/sensitivity_relative_gap_zoom.png)
 
-*Figure 9. Objective gap relative to the direct reference across parameter and initial-condition changes.*
+*Figure 9. Difference in objective \(J\) from direct minimization across parameter and initial-condition changes.*
 
-![Sensitivity PMP/KKT diagnostic gaps](../paper_runs/ut_sensitivity_sweep/sensitivity_pmp_gap.png)
+![Sensitivity PMP/KKT optimality gaps](../paper_runs/ut_sensitivity_sweep/sensitivity_pmp_gap.png)
 
-*Figure 10. PMP/KKT diagnostic gap across the same sensitivity conditions.*
+*Figure 10. PMP/KKT optimality gap across the same sensitivity conditions.*
 
 ## 6. Conclusion
 
-The requested first-layer \(u(t)\) reproduction is complete. The Transformer control trained with the manuscript's PMP/KKT optimality-gap loss is smooth, satisfies the control bounds, and reduces the training optimality gap from about 76 to 0.026 in the best run. Across six Transformer runs in the nominal setting, the common-evaluator objective is \(386.738\pm0.045\), close to the direct cost reference \(386.438\) and better than the Neural-PMP [3] controller-stage baseline. The sensitivity sweep further shows that the same \(u(t)\) training procedure remains close to the direct reference under changes in \(\beta\), \(\gamma\), \(\alpha\), and \(N_0\).
+The requested \(u(t)\) reproduction is complete. The Transformer control trained with the manuscript's PMP/KKT optimality-gap loss is smooth, satisfies the control bounds, and reduces the training optimality gap from about 76 to 0.026 in the best training. Across six Transformer trainings in the nominal setting, the recomputed objective is \(386.738\pm0.045\), close to direct minimization of \(J\) at \(386.438\) and better than Neural-PMP [3] in this comparison. The parameter sensitivity experiments further show that the same \(u(t)\) training procedure remains close to direct minimization under changes in \(\beta\), \(\gamma\), \(\alpha\), and \(N_0\).
