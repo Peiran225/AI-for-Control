@@ -329,8 +329,23 @@ def build_en() -> Path:
         width=6.35,
     )
 
-    add_heading(doc, "4. Comparison With Gu et al. [3]")
-    add_para(doc, "Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. This row should therefore be read as a controller-stage baseline following [3].")
+    add_heading(doc, "4. Comparison With Related Work")
+    add_para(doc, "The related work in the manuscript uses several different optimal-control formulations, so we first compare them at the level of the learned object and optimality condition before giving the numerical baseline.")
+    add_table(
+        doc,
+        ["reference", "learned object / formulation", "relation to this report"],
+        [
+            ["HJB / BSDE methods [1,2,7]", "value function V(t,N) or HJB PDE solution", "full state-domain feedback problem; not directly comparable to the requested time-dependent u(t) reproduction"],
+            ["Neural-PMP [3]", "control sequence via forward rollout, backward costate recursion, and Hamiltonian-gradient updates", "closest related-work baseline for the present u(t) experiment; implemented numerically below"],
+            ["DeepONet HJB policy iteration [5]", "operator for value-function / HJB policy-iteration solves", "methodological reference for feedback/value-function learning; requires a different training problem"],
+            ["PINN policy iteration [6]", "policy evaluation / improvement PDEs with neural networks", "feedback/value-function route, not the same objective as trajectory-level u(t) PMP/KKT loss"],
+            ["classical chemotherapy OC [4]", "PMP and singular-control structure for heterogeneous population model", "source of the singular-control formula used in the manuscript, not a separate learning baseline"],
+        ],
+        [1.55, 2.3, 2.6],
+        font_size=7.2,
+    )
+    doc.add_page_break()
+    add_para(doc, "Among these, [3] is the closest apples-to-apples numerical comparison. Here [3] refers to Gu, Xiong, and Chen, Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. This row should therefore be read as a controller-stage baseline following [3].")
     add_table(
         doc,
         ["method", "control update / training criterion", "PMP/KKT gap", "objective J*", "note"],
@@ -444,8 +459,23 @@ def build_zh() -> Path:
         width=6.35,
     )
 
-    add_heading(doc, "4. 与 Gu et al. [3] 的比较")
-    add_para(doc, "这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文的 Neural-PMP 方法包含两部分：先从数据学习可微动力学模型，再用 PMP-gradient 更新控制序列。由于本报告的模型动力学已知，我们比较的是第二部分的 oracle-dynamics 版本：正向求解状态、反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。因此这一行可理解为遵循 [3] 的 controller-stage baseline。")
+    add_heading(doc, "4. 与 Related Work 的比较")
+    add_para(doc, "论文 related work 里的方法对应几类不同的 optimal-control formulation，所以这里先按学习对象和 optimality condition 做方法层面对比，再给出最接近的数值 baseline。")
+    add_table(
+        doc,
+        ["引用", "学习对象 / formulation", "与本报告的关系"],
+        [
+            ["HJB / BSDE methods [1,2,7]", "value function V(t,N) 或 HJB PDE solution", "面向完整 state-domain feedback 问题；和当前 time-dependent u(t) 复现不完全是同一个任务"],
+            ["Neural-PMP [3]", "forward rollout、backward costate recursion 和 Hamiltonian-gradient 更新控制序列", "与本报告 u(t) 实验最接近；下面给数值对比"],
+            ["DeepONet HJB policy iteration [5]", "value-function / HJB policy-iteration 的 operator", "适合作为 feedback/value-function learning 的方法参照；需要不同训练问题"],
+            ["PINN policy iteration [6]", "用神经网络近似 policy evaluation / improvement PDEs", "也是 feedback/value-function 路线，不是当前 trajectory-level u(t) PMP/KKT loss"],
+            ["classical chemotherapy OC [4]", "heterogeneous population model 的 PMP 和 singular-control 结构", "提供论文使用的 singular-control 公式，不是单独 learning baseline"],
+        ],
+        [1.55, 2.3, 2.6],
+        font_size=7.0,
+    )
+    doc.add_page_break()
+    add_para(doc, "其中 [3] 是最接近 apples-to-apples 的数值比较。这里 [3] 指 Gu, Xiong, and Chen 的 Pontryagin Optimal Control via Neural Networks (arXiv:2212.14566)。该文的 Neural-PMP 方法包含两部分：先从数据学习可微动力学模型，再用 PMP-gradient 更新控制序列。由于本报告的模型动力学已知，我们比较的是第二部分的 oracle-dynamics 版本：正向求解状态、反向求解 costate，并用 Hamiltonian gradient 更新离散控制序列。因此这一行可理解为遵循 [3] 的 controller-stage baseline。")
     add_table(
         doc,
         ["方法", "训练/更新准则", "PMP/KKT gap", "目标函数 J*", "说明"],

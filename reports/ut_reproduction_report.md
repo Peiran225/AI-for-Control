@@ -99,9 +99,19 @@ The next plot shows pointwise PMP/KKT diagnostics along the final learned trajec
 
 *Figure 4. Pointwise singular-condition error and boundary KKT error along the final learned trajectory.*
 
-## 4. Comparison With Gu et al. [3]
+## 4. Comparison With Related Work
 
-Here [3] refers to Gu, Xiong, and Chen, *Pontryagin Optimal Control via Neural Networks* (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. This row should therefore be read as a controller-stage baseline following [3].
+The related work in the manuscript uses several different optimal-control formulations, so we compare them at the level of the learned object and the optimality condition before giving the numerical baseline.
+
+| reference group | learned object / formulation | relation to this report |
+|---|---|---|
+| HJB / BSDE value-function methods [1,2,7] | learn a value function \(V(t,N)\) or solve the HJB PDE | targets the full state-domain feedback problem; not directly comparable to the requested time-dependent \(u(t)\) reproduction |
+| Neural-PMP [3] | optimize a control sequence using forward state rollout, backward costate recursion, and Hamiltonian-gradient updates | closest related-work baseline for the present \(u(t)\) experiment; implemented numerically below |
+| HJB policy iteration with DeepONet [5] | learn an operator for value-function / HJB policy-iteration solves | useful methodological reference for feedback/value-function learning, but requires a different training problem |
+| PINN policy iteration [6] | approximate policy evaluation / improvement PDEs with neural networks | also a feedback/value-function route, not the same objective as the current trajectory-level \(u(t)\) PMP/KKT loss |
+| classical chemotherapy optimal-control model [4] | derives PMP and singular-control structure for a heterogeneous population model | provides the singular-control formula used in the manuscript, rather than a separate learning baseline |
+
+Among these, [3] is the closest apples-to-apples numerical comparison. Here [3] refers to Gu, Xiong, and Chen, *Pontryagin Optimal Control via Neural Networks* (arXiv:2212.14566). Their Neural-PMP method contains two parts: learning a differentiable dynamics model from data, and then using a PMP-gradient update to optimize the control sequence. Since the dynamics are known in our manuscript setting, we compare against an oracle-dynamics version of the second part: forward state integration, backward costate recursion, and Hamiltonian-gradient updates of a discrete control sequence. This row should therefore be read as a controller-stage baseline following [3].
 
 | method | control update / training criterion | PMP/KKT gap | objective \(J\)[^1] | note |
 |---|---|---:|---:|---|
