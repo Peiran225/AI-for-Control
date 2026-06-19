@@ -378,7 +378,12 @@ def plot(summary: List[Dict[str, object]], out_dir: Path) -> None:
         "n0_20": "N0=20",
     }
     cond_labels = [label_map.get(c, c.replace("_", "\n")) for c in cond_order]
-    colors = {"Transformer": "#72B7B2", "Neural-PMP [3]": "#F58518", "constant u=1.5": "#54A24B"}
+    colors = {
+        "direct minimization": "#4C78A8",
+        "Transformer": "#72B7B2",
+        "Neural-PMP [3]": "#F58518",
+        "constant u=1.5": "#54A24B",
+    }
 
     fig, ax = plt.subplots(figsize=(10.2, 4.4), dpi=190)
     width = 0.24
@@ -423,16 +428,21 @@ def plot(summary: List[Dict[str, object]], out_dir: Path) -> None:
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(10.2, 4.4), dpi=190)
-    for method in ["direct minimization", "Transformer", "Neural-PMP [3]"]:
+    gap_methods = ["direct minimization", "Transformer", "Neural-PMP [3]"]
+    gap_width = 0.24
+    for j, method in enumerate(gap_methods):
         vals = []
+        errs = []
         for cond in cond_order:
             row = next((r for r in summary if r["condition"] == cond and r["method"] == method), None)
             vals.append(np.nan if row is None else float(row["pmp_gap_mean"]))
-        ax.plot(cond_labels, vals, marker="o", lw=2.0, label=method)
+            errs.append(0.0 if row is None else float(row["pmp_gap_std"]))
+        ax.bar(x + (j - 1) * gap_width, vals, width=gap_width, yerr=errs, capsize=2, label=method, color=colors[method])
     ax.set_yscale("log")
+    ax.set_xticks(x, cond_labels, rotation=0)
     ax.set_ylabel("PMP/KKT optimality gap")
     ax.set_title("PMP/KKT optimality gap across parameter changes")
-    ax.legend(frameon=False)
+    ax.legend(frameon=False, ncol=3)
     ax.grid(True, which="both", axis="y", alpha=0.25)
     fig.tight_layout()
     fig.savefig(out_dir / "sensitivity_pmp_gap.png", bbox_inches="tight")
