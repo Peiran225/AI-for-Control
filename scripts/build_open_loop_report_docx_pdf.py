@@ -386,8 +386,42 @@ def build_en() -> Path:
         width=6.35,
     )
 
-    add_heading(doc, "5. Conclusion")
-    add_para(doc, "The requested first-layer u(t) reproduction is complete. The Transformer control trained with the manuscript's PMP/KKT optimality-gap loss is smooth, satisfies the control bounds, and reduces the training optimality gap from about 76 to 0.026 in the best run. Across six Transformer runs, the common-evaluator objective is 386.738 +/- 0.045, close to the direct cost reference 386.438 and better than the Neural-PMP [3] controller-stage baseline in this setting. The state-dependent extension u(t,N) is left for separate work because it requires different optimality conditions.")
+    add_heading(doc, "5. Sensitivity Experiments")
+    add_para(doc, "We also tested whether the u(t) reproduction is tied to the nominal parameter choice. In each row below, one parameter is changed while the others remain at the reported setting. The Transformer result is averaged over three random seeds; Neural-PMP [3] is the best controller-stage run from the same search protocol.")
+    add_table(
+        doc,
+        ["condition", "direct J", "Transformer J", "Transformer gap", "Neural-PMP gap"],
+        [
+            ["baseline", "386.706", "386.826 +/- 0.052", "0.031%", "0.240%"],
+            ["beta=0.05", "325.457", "325.713 +/- 0.030", "0.079%", "0.169%"],
+            ["beta=0.20", "444.860", "444.923 +/- 0.006", "0.014%", "0.160%"],
+            ["gamma=10", "230.385", "230.485 +/- 0.011", "0.044%", "0.168%"],
+            ["gamma=40", "614.915", "615.043 +/- 0.021", "0.021%", "0.042%"],
+            ["alpha=0.5", "370.513", "370.482 +/- 0.023", "-0.008%", "0.135%"],
+            ["alpha=2", "404.406", "404.600 +/- 0.033", "0.048%", "0.247%"],
+            ["N0=5", "371.118", "371.168 +/- 0.037", "0.013%", "0.220%"],
+            ["N0=20", "404.839", "405.201 +/- 0.074", "0.089%", "0.174%"],
+        ],
+        [1.15, 0.9, 1.45, 1.15, 1.15],
+        font_size=7.45,
+    )
+    add_note(doc, "* In this sensitivity table, the direct row is an n=400 grid cost reference evaluated with the same RK4 evaluator. The small negative alpha=0.5 gap is within this reference tolerance and should be read as a numerical tie, not as beating the optimum.")
+    add_para(doc, "Across these one-factor tests, the Transformer remains within about 0.09% of the direct reference. Neural-PMP [3] is also close in objective value, but the Transformer is consistently closer to the direct reference and has a smaller PMP/KKT diagnostic gap.")
+    add_figure(
+        doc,
+        "paper_runs/ut_sensitivity_sweep/sensitivity_relative_gap_zoom.png",
+        caption="Figure 9. Objective gap relative to the direct reference across parameter and initial-condition changes.",
+        width=6.35,
+    )
+    add_figure(
+        doc,
+        "paper_runs/ut_sensitivity_sweep/sensitivity_pmp_gap.png",
+        caption="Figure 10. PMP/KKT diagnostic gap across the same sensitivity conditions.",
+        width=6.35,
+    )
+
+    add_heading(doc, "6. Conclusion")
+    add_para(doc, "The requested first-layer u(t) reproduction is complete. The Transformer control trained with the manuscript's PMP/KKT optimality-gap loss is smooth, satisfies the control bounds, and reduces the training optimality gap from about 76 to 0.026 in the best run. Across six Transformer runs in the nominal setting, the common-evaluator objective is 386.738 +/- 0.045, close to the direct cost reference 386.438 and better than the Neural-PMP [3] controller-stage baseline. The sensitivity sweep further shows that the same u(t) training procedure remains close to the direct reference under changes in beta, gamma, alpha, and N0. The state-dependent extension u(t,N) is left for separate work because it requires different optimality conditions.")
     out = REPORTS / "ut_reproduction_report.docx"
     doc.save(out)
     return out
@@ -523,8 +557,42 @@ def build_zh() -> Path:
         width=6.35,
     )
 
-    add_heading(doc, "5. 结论")
-    add_para(doc, "第一层 u(t) 复现实验已经完成。使用论文中的 PMP/KKT optimality-gap loss 训练得到的 Transformer 控制轨迹平滑并满足控制约束；best run 的 training optimality gap 从约 76 降到 0.026。六个 Transformer run 在同一 evaluator 下的目标函数为 386.738 +/- 0.045，接近 direct cost reference 386.438，并优于本设置下的 Neural-PMP [3] controller-stage baseline。本报告不包含状态相关扩展 u(t,N)。")
+    add_heading(doc, "5. 参数和初始条件敏感性实验")
+    add_para(doc, "我们进一步检查 u(t) 复现结果是否只对名义参数有效。下表每次只改变一个参数，其他参数保持报告中的设置。Transformer 结果为三个随机种子的平均值；Neural-PMP [3] 为同一搜索设置下的 best controller-stage run。")
+    add_table(
+        doc,
+        ["condition", "direct J", "Transformer J", "Transformer gap", "Neural-PMP gap"],
+        [
+            ["baseline", "386.706", "386.826 +/- 0.052", "0.031%", "0.240%"],
+            ["beta=0.05", "325.457", "325.713 +/- 0.030", "0.079%", "0.169%"],
+            ["beta=0.20", "444.860", "444.923 +/- 0.006", "0.014%", "0.160%"],
+            ["gamma=10", "230.385", "230.485 +/- 0.011", "0.044%", "0.168%"],
+            ["gamma=40", "614.915", "615.043 +/- 0.021", "0.021%", "0.042%"],
+            ["alpha=0.5", "370.513", "370.482 +/- 0.023", "-0.008%", "0.135%"],
+            ["alpha=2", "404.406", "404.600 +/- 0.033", "0.048%", "0.247%"],
+            ["N0=5", "371.118", "371.168 +/- 0.037", "0.013%", "0.220%"],
+            ["N0=20", "404.839", "405.201 +/- 0.074", "0.089%", "0.174%"],
+        ],
+        [1.15, 0.9, 1.45, 1.15, 1.15],
+        font_size=7.25,
+    )
+    add_note(doc, "* 这个敏感性实验中的 direct 行是 n=400 网格成本参考，并统一用 RK4 evaluator 重新计算。alpha=0.5 的小负 gap 在该参考误差范围内，应理解为数值上持平，不是超过真正最优解。")
+    add_para(doc, "在这些单因素变化中，Transformer 相对 direct reference 的差距保持在约 0.09% 以内。Neural-PMP [3] 的目标函数值也接近，但 Transformer 整体更接近 direct reference，并且 PMP/KKT diagnostic gap 更小。")
+    add_figure(
+        doc,
+        "paper_runs/ut_sensitivity_sweep/sensitivity_relative_gap_zoom.png",
+        caption="图 9. 不同参数和初始条件下，相对于 direct reference 的目标函数差距。",
+        width=6.35,
+    )
+    add_figure(
+        doc,
+        "paper_runs/ut_sensitivity_sweep/sensitivity_pmp_gap.png",
+        caption="图 10. 同一组敏感性条件下的 PMP/KKT diagnostic gap。",
+        width=6.35,
+    )
+
+    add_heading(doc, "6. 结论")
+    add_para(doc, "第一层 u(t) 复现实验已经完成。使用论文中的 PMP/KKT optimality-gap loss 训练得到的 Transformer 控制轨迹平滑并满足控制约束；best run 的 training optimality gap 从约 76 降到 0.026。六个 Transformer run 在名义设置下、同一 evaluator 下的目标函数为 386.738 +/- 0.045，接近 direct cost reference 386.438，并优于本设置下的 Neural-PMP [3] controller-stage baseline。敏感性实验进一步显示，在改变 beta、gamma、alpha 和 N0 时，同一 u(t) 训练流程仍然接近 direct reference。本报告不包含状态相关扩展 u(t,N)。")
     out = REPORTS / "open_loop_ut_reproduction_report_zh.docx"
     doc.save(out)
     return out

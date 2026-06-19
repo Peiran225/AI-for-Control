@@ -139,6 +139,34 @@ For [3], we compare against the oracle-dynamics controller stage: forward state 
 
 *Figure 8. Neural-PMP controller-stage baseline [3]: selected-run training trajectories.*
 
-## 5. Conclusion
+## 5. Sensitivity Experiments
 
-The requested first-layer \(u(t)\) reproduction is complete. The Transformer control trained with the manuscript's PMP/KKT optimality-gap loss is smooth, satisfies the control bounds, and reduces the training optimality gap from about 76 to 0.026 in the best run. Across six Transformer runs, the common-evaluator objective is \(386.738\pm0.045\), close to the direct cost reference \(386.438\) and better than the Neural-PMP [3] controller-stage baseline in this setting.
+We also tested whether the \(u(t)\) reproduction is tied to the nominal parameter choice. In each row below, one parameter is changed while the others remain at the reported setting. The Transformer result is averaged over three random seeds; Neural-PMP [3] is the best controller-stage run from the same search protocol.
+
+| condition | direct \(J\) | Transformer \(J\) | Transformer gap | Neural-PMP gap |
+|---|---:|---:|---:|---:|
+| baseline | 386.706 | 386.826 +/- 0.052 | 0.031% | 0.240% |
+| \(\beta=0.05\) | 325.457 | 325.713 +/- 0.030 | 0.079% | 0.169% |
+| \(\beta=0.20\) | 444.860 | 444.923 +/- 0.006 | 0.014% | 0.160% |
+| \(\gamma=10\) | 230.385 | 230.485 +/- 0.011 | 0.044% | 0.168% |
+| \(\gamma=40\) | 614.915 | 615.043 +/- 0.021 | 0.021% | 0.042% |
+| \(\alpha=0.5\) | 370.513 | 370.482 +/- 0.023 | -0.008% | 0.135% |
+| \(\alpha=2\) | 404.406 | 404.600 +/- 0.033 | 0.048% | 0.247% |
+| \(N_0=5\) | 371.118 | 371.168 +/- 0.037 | 0.013% | 0.220% |
+| \(N_0=20\) | 404.839 | 405.201 +/- 0.074 | 0.089% | 0.174% |
+
+In this sensitivity table, the direct row is an \(n=400\) grid cost reference evaluated with the same RK4 evaluator. The small negative \(\alpha=0.5\) gap is within this reference tolerance and should be read as a numerical tie, not as beating the optimum.
+
+Across these one-factor tests, the Transformer remains within about 0.09% of the direct reference. Neural-PMP [3] is also close in objective value, but the Transformer is consistently closer to the direct reference and has a smaller PMP/KKT diagnostic gap.
+
+![Sensitivity objective gaps](../paper_runs/ut_sensitivity_sweep/sensitivity_relative_gap_zoom.png)
+
+*Figure 9. Objective gap relative to the direct reference across parameter and initial-condition changes.*
+
+![Sensitivity PMP/KKT diagnostic gaps](../paper_runs/ut_sensitivity_sweep/sensitivity_pmp_gap.png)
+
+*Figure 10. PMP/KKT diagnostic gap across the same sensitivity conditions.*
+
+## 6. Conclusion
+
+The requested first-layer \(u(t)\) reproduction is complete. The Transformer control trained with the manuscript's PMP/KKT optimality-gap loss is smooth, satisfies the control bounds, and reduces the training optimality gap from about 76 to 0.026 in the best run. Across six Transformer runs in the nominal setting, the common-evaluator objective is \(386.738\pm0.045\), close to the direct cost reference \(386.438\) and better than the Neural-PMP [3] controller-stage baseline. The sensitivity sweep further shows that the same \(u(t)\) training procedure remains close to the direct reference under changes in \(\beta\), \(\gamma\), \(\alpha\), and \(N_0\).
