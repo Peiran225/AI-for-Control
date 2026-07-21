@@ -58,9 +58,7 @@ for search_path in (ROOT, SCRIPTS):
         sys.path.insert(0, str(search_path))
 
 from diagnose_reduced_objective_hessian import make_reduced_objective, projected_kkt  # noqa: E402
-from outputs.boundary_capable_transformer_20260720.run_boundary_projection_experiments import (  # noqa: E402
-    BoundaryProjectedControl,
-)
+from boundary_control import BoundaryProjectedControl  # noqa: E402
 from refine_time_only_singular_plateau import build_model  # noqa: E402
 from run_direct_openloop_cost import rk4_objective_interval_controls  # noqa: E402
 from train_paper_pmp_kkt import (  # noqa: E402

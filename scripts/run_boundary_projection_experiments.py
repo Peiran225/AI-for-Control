@@ -28,14 +28,15 @@ import torch
 from torch import nn
 
 
-ROOT = Path(__file__).resolve().parents[2]
-OUT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "outputs/boundary_capable_transformer_20260720"
 sys.path.insert(0, str(ROOT))
 
 from scripts.diagnose_reduced_objective_hessian import (  # noqa: E402
     make_reduced_objective,
 )
-from scripts.fit_time_transformer_direct_n800 import switch_metrics  # noqa: E402
+from scripts.boundary_control import BoundaryProjectedControl  # noqa: E402
+from scripts.control_switch_metrics import switch_metrics  # noqa: E402
 from scripts.refine_time_only_singular_plateau import (  # noqa: E402
     build_model,
     high_accuracy_metrics,
@@ -70,48 +71,6 @@ EXPERIMENTS = (
     Experiment("fixed_scale_1p03", "fixed", 1.03),
     Experiment("learnable_scale_1p02", "learnable", 1.02),
 )
-
-
-class BoundaryProjectedControl(nn.Module):
-    """Scale a sigmoid control and project it onto the exact control box."""
-
-    def __init__(
-        self,
-        base: nn.Module,
-        *,
-        umax: float,
-        scale_mode: str,
-        initial_scale: float,
-        scale_min: float = 1.01,
-        scale_max: float = 1.03,
-    ) -> None:
-        super().__init__()
-        self.base = base
-        self.umax = float(umax)
-        self.scale_mode = scale_mode
-        self.scale_min = float(scale_min)
-        self.scale_max = float(scale_max)
-        if scale_mode == "fixed":
-            self.register_buffer(
-                "fixed_scale", torch.tensor(float(initial_scale), dtype=torch.float64)
-            )
-        elif scale_mode == "learnable":
-            fraction = (initial_scale - scale_min) / (scale_max - scale_min)
-            fraction = min(max(fraction, 1.0e-6), 1.0 - 1.0e-6)
-            raw = math.log(fraction / (1.0 - fraction))
-            self.raw_scale = nn.Parameter(torch.tensor(raw, dtype=torch.float64))
-        else:
-            raise ValueError(f"unsupported scale_mode {scale_mode!r}")
-
-    def scale_value(self) -> torch.Tensor:
-        if self.scale_mode == "fixed":
-            return self.fixed_scale
-        return self.scale_min + (self.scale_max - self.scale_min) * torch.sigmoid(
-            self.raw_scale
-        )
-
-    def forward(self, t: torch.Tensor) -> torch.Tensor:
-        return torch.clamp(self.scale_value() * self.base(t), 0.0, self.umax)
 
 
 def build_wrapper(

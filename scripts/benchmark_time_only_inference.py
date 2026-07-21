@@ -19,9 +19,7 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.refine_time_only_singular_plateau import build_model  # noqa: E402
 from train_paper_pmp_kkt import ProblemConfig  # noqa: E402
-from outputs.boundary_capable_transformer_20260720.run_boundary_projection_experiments import (  # noqa: E402
-    BoundaryProjectedControl,
-)
+from scripts.boundary_control import BoundaryProjectedControl  # noqa: E402
 
 
 def resolve(path: Path) -> Path:

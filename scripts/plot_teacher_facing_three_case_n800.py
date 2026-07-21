@@ -433,7 +433,6 @@ def write_metrics_table(data_dir: Path, cases: list[dict[str, np.ndarray]]) -> N
     raw_linf = []
     pg_linf = []
     hessian_eigenvalue_l2 = []
-    curvature = []
     for data in cases:
         control = data["interval_control"]
         gradient = data["full_gradient"]
@@ -444,9 +443,6 @@ def write_metrics_table(data_dir: Path, cases: list[dict[str, np.ndarray]]) -> N
             float(np.linalg.norm(data["hessian_eigenvalues"]))
         )
         # F_h is not stored in the NPZ; read it from the case summary below.
-        curvature.append(
-            float(data["tested_critical_subspace_hessian_eigenvalues"].min())
-        )
     for case in CASES:
         summary = json.loads((data_dir / case / "summary.json").read_text())
         objectives.append(float(summary["reduced_objective_F_h"]))
@@ -454,11 +450,10 @@ def write_metrics_table(data_dir: Path, cases: list[dict[str, np.ndarray]]) -> N
             (float(summary["hamiltonian_min"]), float(summary["hamiltonian_max"]))
         )
 
-    def tex_scientific(value: float, digits: int = 3, show_plus: bool = False) -> str:
+    def tex_scientific(value: float, digits: int = 3) -> str:
         exponent = int(np.floor(np.log10(abs(value))))
         mantissa = value / (10.0**exponent)
-        sign = "+" if show_plus and value > 0.0 else ""
-        return rf"{sign}{mantissa:.{digits}f}\times10^{{{exponent}}}"
+        return rf"{mantissa:.{digits}f}\times10^{{{exponent}}}"
 
     lines = [
         r"\begin{tabular}{@{}lccc@{}}",
@@ -492,20 +487,6 @@ def write_metrics_table(data_dir: Path, cases: list[dict[str, np.ndarray]]) -> N
             rf"${hessian_eigenvalue_l2[0]:.6f}$ & "
             rf"${hessian_eigenvalue_l2[1]:.6f}$ & "
             rf"${hessian_eigenvalue_l2[2]:.6f}$ \\"
-        ),
-        (
-            rf"Minimum eigenvalue of restricted Hessian $\lambda_{{\min}}$ & "
-            rf"${tex_scientific(curvature[0], show_plus=True)}$ & "
-            rf"${tex_scientific(curvature[1], show_plus=True)}$ & "
-            rf"${tex_scientific(curvature[2], show_plus=True)}$ \\"
-        ),
-        (
-            r"First- and second-order optimality checks & "
-            + " & ".join(
-                "Pass" if pg <= 1.0e-4 and value > 0.0 else "Fail"
-                for pg, value in zip(pg_linf, curvature, strict=True)
-            )
-            + r" \\"
         ),
         r"\bottomrule",
         r"\end{tabular}",

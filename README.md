@@ -1,57 +1,46 @@
-# Transformer Feedback Control
+# Transformer Optimal Control: Three-Case Experiments
 
-Clean upload preview for the PMP/KKT optimal-control experiments.
+This branch contains the code used to train and evaluate three control cases
+on one tumor model and a common numerical grid:
 
-## Method
+| Case | Policy | Optimality-condition formulation |
+|---|---|---|
+| Time-only | `u(t)` | projected full reduced-gradient and PMP/KKT residuals |
+| Case 1 | `u(N,t)`, option `cf` | closed-form singular-control candidate |
+| Case 2 | `u(N,t)`, option `der` | residuals based on `H_u`, its time derivatives, and the Legendre--Clebsch term |
 
-The main comparison is:
+Case 1 and Case 2 share the same feedback architecture.  They differ in the
+optimality-condition loss used for training.
 
-```text
-Transformer open-loop baseline      u_theta(t)
-Transformer feedback policy         u_theta(t, N)
-Refined Transformer feedback        u_theta(t, N), low-lr refinement
+## Start here
+
+- [`THREE_CASE_GUIDE.md`](THREE_CASE_GUIDE.md) gives the code map, execution
+  order, and commands for the current experiments.
+- [`tumor_problem.py`](tumor_problem.py) defines the shared tumor dynamics and
+  high-accuracy zero-order-hold evaluator.
+- [`train_paper_pmp_kkt.py`](train_paper_pmp_kkt.py) contains the shared
+  time-only Transformer and PMP/KKT implementation.
+- [`scripts/train_feedback_section5.py`](scripts/train_feedback_section5.py)
+  is the common training entry point for Case 1 and Case 2.
+- [`scripts/generate_teacher_facing_three_case_n800.py`](scripts/generate_teacher_facing_three_case_n800.py)
+  computes the matched three-case Hamiltonian, full reduced gradient, and
+  reduced Hessian diagnostics.
+- [`scripts/generate_two_state_three_case_main_figures.py`](scripts/generate_two_state_three_case_main_figures.py)
+  generates the nominal versus resistant-heavy comparison for all three cases.
+
+## Environment and checks
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m pytest -q
 ```
 
-All three are trained with the PMP/KKT optimality-gap loss. The open-loop baseline is still open-loop because it only observes time `t`; the feedback policies observe both time and the current population state `N`.
+Generated experiment directories, selected `.pt` checkpoints, and large
+`.npz` arrays are not versioned on this branch.  Scripts that reproduce the
+selected figures therefore take explicit checkpoint paths.  The source code,
+configuration, and lightweight tests are versioned.
 
-The MLP feedback run is kept as an earlier baseline for context.
-
-Here `beta` is the running population-cost weight in the objective. The curated result figures focus on `beta=0.1`, which is the setting where we ran the full seed comparison and Transformer feedback refinement experiments.
-
-## Files
-
-```text
-scripts/train_openloop.py      # Transformer open-loop baseline u(t)
-scripts/train_feedback.py      # Transformer feedback policy u(t, N)
-scripts/refine_feedback.py     # Refined Transformer feedback
-scripts/evaluate.py            # policy generalization evaluation
-scripts/run_example.sh         # example beta=0.1 commands
-
-results/method_comparison_summary.csv
-results/method_comparison_log.png
-results/method_comparison_zoom.png
-results/demo_comparison_summary.csv
-results/demo_vs_ours_beta01_clean_log.png
-results/improvement_path.png
-results/transformer_ablation_summary.csv
-results/transformer_ablation.png
-```
-
-## Main Result
-
-For beta=0.1, mean PMP/KKT gap across initial conditions:
-
-```text
-Transformer open-loop baseline  5.743
-MLP feedback baseline           0.963
-Transformer feedback policy     0.041
-Refined Transformer feedback    0.0187
-```
-
-The recommended final policy is `Refined Transformer feedback`.
-
-The supplemental demo comparison uses the original demo checkpoint after sigmoid projection to the legal control range.
-
-## Notes
-
-This preview intentionally excludes raw training logs, checkpoints, virtual environments, server-specific scripts, and intermediate experimental variants.
+Earlier open-loop and feedback experiments remain in the repository for
+reference.  The files listed above and in `THREE_CASE_GUIDE.md` are the entry
+points for the current three-case comparison.

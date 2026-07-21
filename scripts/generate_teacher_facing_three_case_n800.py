@@ -42,9 +42,7 @@ for search_path in (ROOT, SCRIPTS):
     if str(search_path) not in sys.path:
         sys.path.insert(0, str(search_path))
 
-from outputs.boundary_capable_transformer_20260720.run_boundary_projection_experiments import (  # noqa: E402
-    BoundaryProjectedControl,
-)
+from boundary_control import BoundaryProjectedControl  # noqa: E402
 from refine_time_only_singular_plateau import build_model  # noqa: E402
 from train_teacher_free_resolution_curriculum import (  # noqa: E402
     FixedBoxProjection,
