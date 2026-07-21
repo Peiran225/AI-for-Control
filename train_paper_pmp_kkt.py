@@ -202,8 +202,8 @@ def singular_control(N: torch.Tensor, params: Dict[str, torch.Tensor], eps: floa
 
 def objective_value(N: torch.Tensor, u: torch.Tensor, cfg: ProblemConfig, params: Dict[str, torch.Tensor]) -> torch.Tensor:
     dt = cfg.T / cfg.n
-    running = (N * params["beta"].unsqueeze(0)).sum(dim=-1) + params["gamma"] * u
-    integral = dt * (0.5 * running[0] + running[1:-1].sum() + 0.5 * running[-1])
+    running = (N[:-1] * params["beta"].unsqueeze(0)).sum(dim=-1) + params["gamma"] * u[:-1]
+    integral = dt * running.sum()
     terminal = (params["alpha"] * N[-1]).sum()
     return terminal + integral
 
@@ -214,17 +214,28 @@ def pmp_kkt_loss(
     params: Dict[str, torch.Tensor],
     singular_eps: float,
     singular_tau: float,
+    detach_gate: bool = False,
 ) -> Dict[str, torch.Tensor]:
     N = simulate_state(u, cfg, params)
     lam = compute_costate(N, u, cfg, params)
-    psi = params["gamma"] - (lam * params["phi"].unsqueeze(0) * N).sum(dim=-1)
+    # For the forward-Euler transcription, u_k is paired with lambda_{k+1}.
+    # The terminal value is retained only for plotting the continuous endpoint.
+    psi_interval = params["gamma"] - (lam[1:] * params["phi"].unsqueeze(0) * N[:-1]).sum(dim=-1)
+    psi_terminal = params["gamma"] - (lam[-1] * params["phi"] * N[-1]).sum()
+    psi = torch.cat([psi_interval, psi_terminal.unsqueeze(0)])
     u_sing = singular_control(N, params)
     admissible = ((u_sing >= 0.0) & (u_sing <= params["umax"])).to(u.dtype)
     q = torch.sigmoid((singular_eps - psi.abs()) / singular_tau) * admissible
 
-    l_sing = (u - u_sing).pow(2)
-    l_ns = (torch.relu(psi) * u + torch.relu(-psi) * (params["umax"] - u)).pow(2)
-    opt_gap = (q * l_sing + (1.0 - q) * l_ns).mean()
+    l_sing = (u[:-1] - u_sing[:-1]).pow(2)
+    l_ns = (
+        torch.relu(psi_interval) * u[:-1]
+        + torch.relu(-psi_interval) * (params["umax"] - u[:-1])
+    ).pow(2)
+    q_for_loss = q[:-1].detach() if detach_gate else q[:-1]
+    singular_component = (q_for_loss * l_sing).mean()
+    nonsingular_component = ((1.0 - q_for_loss) * l_ns).mean()
+    opt_gap = singular_component + nonsingular_component
     smooth = (u[1:] - u[:-1]).pow(2).mean()
     J = objective_value(N, u, cfg, params)
 
@@ -232,6 +243,8 @@ def pmp_kkt_loss(
         "opt_gap": opt_gap,
         "singular_loss": l_sing.mean(),
         "nonsingular_loss": l_ns.mean(),
+        "singular_component": singular_component,
+        "nonsingular_component": nonsingular_component,
         "smooth": smooth,
         "objective": J,
         "N": N,
@@ -245,7 +258,7 @@ def pmp_kkt_loss(
 def write_csv(path: Path, rows) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as f:
-        writer = csv.writer(f)
+        writer = csv.writer(f, lineterminator="\n")
         writer.writerows(rows)
 
 
@@ -283,12 +296,26 @@ def train(args: argparse.Namespace) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     best_metric = float("inf")
     best_state = None
-    history = [["epoch", "loss", "opt_gap", "objective", "smooth", "u_min", "u_max", "u_mean", "final_mean_N", "psi_mean_abs", "q_mean"]]
+    history = [[
+        "epoch",
+        "loss",
+        "opt_gap",
+        "objective",
+        "smooth",
+        "u_min",
+        "u_max",
+        "u_mean",
+        "final_mean_N",
+        "psi_mean_abs",
+        "q_mean",
+        "singular_component",
+        "nonsingular_component",
+    ]]
 
     for epoch in range(1, args.epochs + 1):
         opt.zero_grad(set_to_none=True)
         u = model(t)
-        pack = pmp_kkt_loss(u, cfg, params, args.singular_eps, args.singular_tau)
+        pack = pmp_kkt_loss(u, cfg, params, args.singular_eps, args.singular_tau, args.detach_gate)
         loss = pack["opt_gap"] + args.smooth_weight * pack["smooth"] + args.objective_weight * pack["objective"] / (cfg.n + 1)
         loss.backward()
 
@@ -306,6 +333,8 @@ def train(args: argparse.Namespace) -> None:
                 float(N[-1].mean().detach().cpu()),
                 float(pack["psi"].abs().mean().detach().cpu()),
                 float(pack["q"].mean().detach().cpu()),
+                float(pack["singular_component"].detach().cpu()),
+                float(pack["nonsingular_component"].detach().cpu()),
             ]
             history.append(row)
             metric = row[1]
@@ -336,7 +365,7 @@ def train(args: argparse.Namespace) -> None:
     model.load_state_dict(best_state)
     with torch.no_grad():
         u = model(t)
-        pack = pmp_kkt_loss(u, cfg, params, args.singular_eps, args.singular_tau)
+        pack = pmp_kkt_loss(u, cfg, params, args.singular_eps, args.singular_tau, args.detach_gate)
         N = pack["N"]
         lam = pack["lambda"]
         rows = [["t", "u", "u_sing", "psi", "q", "mean_N"]]
@@ -374,7 +403,7 @@ def main() -> None:
     parser.add_argument("--T", type=float, default=10.0)
     parser.add_argument("--m", type=int, default=21)
     parser.add_argument("--umax", type=float, default=3.0)
-    parser.add_argument("--beta", type=float, default=0.3)
+    parser.add_argument("--beta", type=float, default=0.1)
     parser.add_argument("--alpha", type=float, default=1.0)
     parser.add_argument("--gamma", type=float, default=20.0)
     parser.add_argument("--n0", type=float, default=10.0)
@@ -391,6 +420,7 @@ def main() -> None:
     parser.add_argument("--grad_clip", type=float, default=10.0)
     parser.add_argument("--singular_eps", type=float, default=0.05)
     parser.add_argument("--singular_tau", type=float, default=0.02)
+    parser.add_argument("--detach_gate", action="store_true")
     parser.add_argument("--smooth_weight", type=float, default=1e-4)
     parser.add_argument("--objective_weight", type=float, default=0.0)
     parser.add_argument("--seed", type=int, default=42)

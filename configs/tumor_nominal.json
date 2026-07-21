@@ -1,0 +1,14 @@
+{
+  "T": 10.0,
+  "m": 21,
+  "umax": 3.0,
+  "beta": 0.1,
+  "alpha": 1.0,
+  "gamma": 20.0,
+  "n0": 10.0,
+  "m_suppression": 0.5,
+  "control_execution": "zero_order_hold",
+  "reference_integrator": "DOP853 segmented at every control breakpoint",
+  "reference_rtol": 1e-10,
+  "reference_atol": 1e-12
+}
