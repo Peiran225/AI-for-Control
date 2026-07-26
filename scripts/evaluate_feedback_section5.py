@@ -46,6 +46,7 @@ def load_feedback_checkpoint(path: Path) -> tuple[NestedFeedbackTransformer, Pro
         bool(getattr(args, "center_state_correction", False)),
         float(getattr(args, "action_temperature", 1.0)),
         float(getattr(args, "action_scale", 1.0)),
+        str(getattr(args, "action_parameterization", "logit-temperature")),
     ).double()
     model.load_state_dict(checkpoint["model_state"])
     feature_params = build_params(cfg, torch.device("cpu"), torch.float64)

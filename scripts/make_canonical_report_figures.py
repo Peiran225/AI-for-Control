@@ -17,7 +17,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from tumor_problem import NOMINAL_TUMOR_PROBLEM, evaluate_zoh_control  # noqa: E402
+from tumor_problem import (  # noqa: E402
+    NOMINAL_TUMOR_PROBLEM,
+    TumorProblem,
+    evaluate_zoh_control,
+)
 
 
 RESULTS = ROOT / "paper_runs" / "canonical_results"
@@ -779,9 +783,11 @@ def singular_figure() -> None:
     plt.close(fig)
 
 
-def strict_singular_quantities(result: dict) -> dict[str, np.ndarray]:
+def strict_singular_quantities(
+    result: dict,
+    problem: TumorProblem = NOMINAL_TUMOR_PROBLEM,
+) -> dict[str, np.ndarray]:
     """Evaluate the analytic order-one singular conditions on one trajectory."""
-    problem = NOMINAL_TUMOR_PROBLEM
     parameters = problem.vectors()
     N = np.asarray(result["diagnostic_N"], dtype=np.float64)
     costate = np.asarray(result["diagnostic_lambda"], dtype=np.float64)
@@ -840,8 +846,11 @@ def strict_singular_quantities(result: dict) -> dict[str, np.ndarray]:
     }
 
 
-def strict_singular_summary(result: dict, quantities: dict[str, np.ndarray]) -> dict:
-    problem = NOMINAL_TUMOR_PROBLEM
+def strict_singular_summary(
+    result: dict,
+    quantities: dict[str, np.ndarray],
+    problem: TumorProblem = NOMINAL_TUMOR_PROBLEM,
+) -> dict:
     tolerance = 0.005
     psi_relative = quantities["psi"] / problem.gamma
     near = np.abs(psi_relative) <= tolerance

@@ -49,13 +49,7 @@ from evaluate_feedback_section5 import (  # noqa: E402
 from make_canonical_report_figures import strict_singular_quantities  # noqa: E402
 from train_feedback_section5 import load_operational_time_control  # noqa: E402
 from train_paper_pmp_kkt import ProblemConfig  # noqa: E402
-from tumor_problem import (  # noqa: E402
-    NOMINAL_TUMOR_PROBLEM,
-    TumorProblem,
-    assert_nominal_problem,
-    dH_dN_numpy,
-    dynamics_numpy,
-)
+from tumor_problem import TumorProblem, dH_dN_numpy, dynamics_numpy  # noqa: E402
 
 
 DEFAULT_TIME_CHECKPOINT = (
@@ -276,11 +270,7 @@ def assert_common_problem(cases: list[RealizedCase]) -> TumorProblem:
             raise ValueError(
                 f"{case.case_id} uses a different physical problem: {differences}"
             )
-    problem = problem_from_config(reference)
-    # strict_singular_quantities uses the canonical vectors; fail rather than
-    # silently applying them to a different physical problem.
-    assert_nominal_problem(problem, context="three-case continuous diagnostic")
-    return problem
+    return problem_from_config(reference)
 
 
 def resistant_heavy_initial_state(problem: TumorProblem) -> np.ndarray:
@@ -484,11 +474,17 @@ def identity_checks(
             )
         ),
     }
+    coefficient_scale = max(
+        1.0,
+        abs(problem.alpha),
+        abs(problem.beta) / 0.1,
+        abs(problem.gamma) / 20.0,
+    )
     tolerances = {
-        "H_u_finite_difference_max_abs": 2.0e-5,
-        "dot_psi_chain_rule_max_abs": 2.0e-9,
-        "ddot_psi_chain_rule_max_abs": 2.0e-8,
-        "ddot_psi_A_plus_Bu_max_abs": 2.0e-12,
+        "H_u_finite_difference_max_abs": 2.0e-5 * coefficient_scale,
+        "dot_psi_chain_rule_max_abs": 2.0e-9 * coefficient_scale,
+        "ddot_psi_chain_rule_max_abs": 2.0e-8 * coefficient_scale,
+        "ddot_psi_A_plus_Bu_max_abs": 2.0e-12 * coefficient_scale,
     }
     failures = {
         key: (value, tolerances[key])
@@ -585,7 +581,7 @@ def evaluate_case(
         "diagnostic_lambda": costate,
         "diagnostic_u": control,
     }
-    quantities = strict_singular_quantities(diagnostic_result)
+    quantities = strict_singular_quantities(diagnostic_result, problem)
     checks = identity_checks(state, costate, control, quantities, problem)
     closure_error = feedback_closure_error(specification, node_states)
     return EvaluatedCase(

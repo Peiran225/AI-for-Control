@@ -65,6 +65,7 @@ class NestedFeedbackTransformer(nn.Module):
         center_state_correction: bool = False,
         action_temperature: float = 1.0,
         action_scale: float = 1.0,
+        action_parameterization: str = "logit-temperature",
     ) -> None:
         super().__init__()
         self.m = int(m)
@@ -78,10 +79,19 @@ class NestedFeedbackTransformer(nn.Module):
         self.action_scale = float(action_scale)
         if self.action_scale <= 0.0:
             raise ValueError("action_scale must be positive")
+        if action_parameterization not in {
+            "logit-temperature",
+            "linear-raw-box",
+        }:
+            raise ValueError(
+                f"unknown action parameterization: {action_parameterization}"
+            )
+        self.action_parameterization = action_parameterization
         if state_feature_mode not in {
             "log_absolute",
             "relative_nominal",
             "burden_composition",
+            "total_burden",
         }:
             raise ValueError(f"unknown state feature mode: {state_feature_mode}")
         self.state_feature_mode = state_feature_mode
@@ -136,6 +146,16 @@ class NestedFeedbackTransformer(nn.Module):
             }
             self.action_scale = float(wrapper["scale"])
             self.action_temperature = float(wrapper.get("temperature", 1.0))
+            self.action_parameterization = "logit-temperature"
+        elif wrapper_class == "LinearRawBoxProjection":
+            source_state = {
+                key.removeprefix("base."): value
+                for key, value in source_state.items()
+                if key.startswith("base.")
+            }
+            self.action_scale = 1.0
+            self.action_temperature = 1.0
+            self.action_parameterization = "linear-raw-box"
         elif wrapper_class == "BoundaryProjectedControl":
             source_state = {
                 key.removeprefix("base."): value
@@ -197,6 +217,18 @@ class NestedFeedbackTransformer(nn.Module):
                     component.std(dim=-1, keepdim=True, unbiased=False),
                     component.max(dim=-1, keepdim=True).values,
                 )
+            elif self.state_feature_mode == "total_burden":
+                eps = torch.finfo(state.dtype).eps
+                total = state.sum(dim=-1, keepdim=True).clamp_min(eps)
+                reference_total = reference.sum(dim=-1, keepdim=True).clamp_min(eps)
+                log_total_ratio = torch.log(total / reference_total)
+                zeros = torch.zeros_like(log_total_ratio)
+                # Preserve the state-branch parameter count while exposing only
+                # the scalar total burden.  The phenotype-component slots are
+                # deliberately zero, so no composition information can leak
+                # into this controlled ablation.
+                component = torch.zeros_like(state)
+                summaries = (log_total_ratio, zeros, zeros)
             else:
                 if self.feature_r.numel() == 0 or self.feature_phi.numel() == 0:
                     raise RuntimeError(
@@ -274,6 +306,8 @@ class NestedFeedbackTransformer(nn.Module):
         else:
             raise ValueError(f"unknown state mode: {state_mode}")
         combined_logit = base_logit + self.correction_gain * correction
+        if self.action_parameterization == "linear-raw-box":
+            return torch.clamp(combined_logit, 0.0, self.umax)
         return torch.clamp(
             self.action_scale
             * self.umax
@@ -1361,7 +1395,11 @@ def load_operational_time_control(
         checkpoint_args["init_u"],
     ).to(device=device, dtype=dtype)
     source_state = checkpoint["model_state"]
-    if wrapper_class in {"FixedBoxProjection", "BoundaryProjectedControl"}:
+    if wrapper_class in {
+        "FixedBoxProjection",
+        "BoundaryProjectedControl",
+        "LinearRawBoxProjection",
+    }:
         source_state = {
             key.removeprefix("base."): value
             for key, value in source_state.items()
@@ -1374,8 +1412,8 @@ def load_operational_time_control(
             if key.startswith("time_branch.")
         }
     model.load_state_dict(source_state)
-    model.eval()
     grid = torch.linspace(0.0, 1.0, cfg.n + 1, device=device, dtype=dtype)
+    model.eval()
     control = model(grid)
     if wrapper_class == "FixedBoxProjection":
         probability = torch.clamp(
@@ -1391,6 +1429,11 @@ def load_operational_time_control(
     elif wrapper_class == "BoundaryProjectedControl":
         scale = float(wrapper.get("scale", wrapper.get("initial_scale", 1.0)))
         control = torch.clamp(scale * control, 0.0, cfg.umax)
+    elif wrapper_class == "LinearRawBoxProjection":
+        hidden = model.input(time_features(grid)).unsqueeze(0)
+        hidden = model.encoder(hidden).squeeze(0)
+        raw_control = model.output(hidden).squeeze(-1)
+        control = torch.clamp(raw_control, 0.0, cfg.umax)
     return control[: cfg.n]
 
 
@@ -1583,14 +1626,22 @@ def train(args: argparse.Namespace) -> None:
         args.center_state_correction,
         args.action_temperature,
         args.action_scale,
+        args.action_parameterization,
     ).to(device=device, dtype=dtype)
     time_checkpoint = Path(args.time_checkpoint)
     checkpoint = model.load_time_checkpoint(time_checkpoint)
     args.action_temperature = float(model.action_temperature)
     args.action_scale = float(model.action_scale)
+    args.action_parameterization = str(model.action_parameterization)
     checkpoint_problem = checkpoint.get("problem", {})
     if int(checkpoint_problem.get("n", cfg.n)) != cfg.n:
         raise ValueError("time-only checkpoint grid mismatch")
+    for key in ("T", "umax", "beta", "alpha", "gamma", "n0", "m_suppression"):
+        if not math.isclose(
+            float(checkpoint_problem.get(key, getattr(cfg, key))),
+            float(getattr(cfg, key)),
+        ):
+            raise ValueError(f"time-only checkpoint {key} mismatch")
     model.to(device=device, dtype=dtype)
     model.set_feature_vectors(params["r"], params["phi"])
 
@@ -1700,6 +1751,32 @@ def train(args: argparse.Namespace) -> None:
 
     refresh_nominal_reference()
 
+    if args.auto_residual_scales:
+        with torch.enable_grad():
+            scale_pack = section5_loss(
+                model,
+                nominal_initial,
+                cfg,
+                params,
+                args,
+                state_mode="w_zero",
+            )
+
+        def nominal_rms(name: str) -> float:
+            value = scale_pack[name].detach()
+            return max(float(value.square().mean().sqrt().cpu()), 1.0e-8)
+
+        args.psi_scale = nominal_rms("psi")
+        args.dot_scale = nominal_rms("dot_psi")
+        args.ddot_scale = nominal_rms("ddot_psi")
+        args.B_scale = nominal_rms("B")
+        print(
+            "Auto-calibrated residual scales on the frozen nominal trajectory: "
+            f"psi={args.psi_scale:.6g}, dot={args.dot_scale:.6g}, "
+            f"ddot={args.ddot_scale:.6g}, B={args.B_scale:.6g}",
+            flush=True,
+        )
+
     if args.selection_start_epoch < 0:
         args.selection_start_epoch = (
             args.time_unfreeze_epoch
@@ -1798,6 +1875,7 @@ def train(args: argparse.Namespace) -> None:
         args.training_sample_seed_base + args.seed
     )
     history: list[dict] = []
+    training_history: list[dict] = []
     best_value = float("inf")
     best_state: dict[str, torch.Tensor] | None = None
     best_reference: torch.Tensor | None = None
@@ -1950,6 +2028,26 @@ def train(args: argparse.Namespace) -> None:
             raise RuntimeError(
                 "positivity clamp became active; the current adjoint no longer matches"
             )
+        training_history.append(
+            {
+                "epoch": epoch,
+                "loss": float(pack["loss"].detach().cpu()),
+                "opt_gap": float(pack["opt_gap"].detach().cpu()),
+                "full_gradient_loss": float(
+                    pack["full_gradient_loss"].detach().cpu()
+                ),
+                "full_gradient_max_loss": float(
+                    pack["full_gradient_max_loss"].detach().cpu()
+                ),
+                "full_gradient_weight": float(
+                    args._current_full_gradient_weight
+                ),
+                "full_gradient_max_weight": float(
+                    args._current_full_gradient_max_weight
+                ),
+                "learning_rate": float(optimizer.param_groups[1]["lr"]),
+            }
+        )
         pack["loss"].backward()
         if args.grad_clip > 0.0:
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
@@ -2069,6 +2167,7 @@ def train(args: argparse.Namespace) -> None:
         out_dir / "best_feedback_section5_full_gradient_linf.pt",
     )
     write_history(out_dir / "history.csv", history)
+    write_history(out_dir / "training_history.csv", training_history)
     evaluate_test_suite(
         model,
         cfg,
@@ -2143,6 +2242,12 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--action_parameterization",
+        choices=("logit-temperature", "linear-raw-box"),
+        default="logit-temperature",
+        help="Action map; automatically inherited from supported time checkpoints.",
+    )
+    parser.add_argument(
         "--center_state_correction",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -2150,7 +2255,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--state_feature_mode",
-        choices=["log_absolute", "relative_nominal", "burden_composition"],
+        choices=[
+            "log_absolute",
+            "relative_nominal",
+            "burden_composition",
+            "total_burden",
+        ],
         default="log_absolute",
     )
     parser.add_argument(
@@ -2232,6 +2342,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dot_scale", type=float, default=1.0)
     parser.add_argument("--ddot_scale", type=float, default=1.0)
     parser.add_argument("--B_scale", type=float, default=1.0)
+    parser.add_argument(
+        "--auto_residual_scales",
+        action="store_true",
+        help="Fix DER residual RMS scales from the incoming nominal trajectory before training.",
+    )
     parser.add_argument("--singular_loss_weight", type=float, default=1.0)
     parser.add_argument("--nonsingular_loss_weight", type=float, default=1.0)
     parser.add_argument("--smooth_weight", type=float, default=3.0)
