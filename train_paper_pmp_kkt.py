@@ -136,6 +136,66 @@ class TimeTransformer(nn.Module):
         return self.umax * torch.sigmoid(logits)
 
 
+class TimeCNN(nn.Module):
+    """Local temporal baseline with the same pointwise time features.
+
+    The model applies a short stack of same-padded one-dimensional
+    convolutions along the sampled treatment horizon.  Unlike the Transformer,
+    its receptive field is fixed by the kernel width and depth.
+    """
+
+    def __init__(
+        self,
+        channels: int,
+        layers: int,
+        kernel_size: int,
+        umax: float,
+        init_u: float,
+    ):
+        super().__init__()
+        if channels <= 0:
+            raise ValueError("channels must be positive")
+        if layers <= 0:
+            raise ValueError("layers must be positive")
+        if kernel_size <= 0 or kernel_size % 2 == 0:
+            raise ValueError("kernel_size must be a positive odd integer")
+
+        blocks = []
+        in_channels = 6
+        padding = kernel_size // 2
+        for _ in range(layers):
+            blocks.append(
+                nn.Conv1d(
+                    in_channels,
+                    channels,
+                    kernel_size=kernel_size,
+                    padding=padding,
+                )
+            )
+            blocks.append(nn.GELU())
+            in_channels = channels
+        self.features = nn.Sequential(*blocks)
+        self.output = nn.Conv1d(channels, 1, kernel_size=1)
+        self.umax = float(umax)
+        self.init_u = float(init_u)
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        for module in self.features.modules():
+            if isinstance(module, nn.Conv1d):
+                nn.init.xavier_uniform_(module.weight)
+                nn.init.zeros_(module.bias)
+        nn.init.normal_(self.output.weight, mean=0.0, std=1e-3)
+        init = min(max(self.init_u / self.umax, 1e-4), 1.0 - 1e-4)
+        with torch.no_grad():
+            self.output.bias.fill_(math.log(init / (1.0 - init)))
+
+    def forward(self, t: torch.Tensor) -> torch.Tensor:
+        features = time_features(t).transpose(0, 1).unsqueeze(0)
+        logits = self.output(self.features(features)).squeeze(0).squeeze(0)
+        return self.umax * torch.sigmoid(logits)
+
+
 class ParamControl(nn.Module):
     def __init__(self, n_points: int, umax: float, init_u: float):
         super().__init__()
@@ -284,6 +344,14 @@ def train(args: argparse.Namespace) -> None:
         model = TimeMLP(parse_hidden(args.hidden), args.umax, args.init_u).to(device=device, dtype=dtype)
     elif args.model == "transformer":
         model = TimeTransformer(args.d_model, args.heads, args.layers, args.umax, args.init_u).to(device=device, dtype=dtype)
+    elif args.model == "cnn":
+        model = TimeCNN(
+            args.cnn_channels,
+            args.cnn_layers,
+            args.cnn_kernel_size,
+            args.umax,
+            args.init_u,
+        ).to(device=device, dtype=dtype)
     elif args.model == "param":
         model = ParamControl(cfg.n + 1, args.umax, args.init_u).to(device=device, dtype=dtype)
     else:
@@ -398,7 +466,7 @@ def train(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the paper-style PMP/KKT optimality-gap control.")
-    parser.add_argument("--model", choices=["mlp", "transformer", "param"], default="mlp")
+    parser.add_argument("--model", choices=["mlp", "transformer", "cnn", "param"], default="mlp")
     parser.add_argument("--n", type=int, default=200)
     parser.add_argument("--T", type=float, default=10.0)
     parser.add_argument("--m", type=int, default=21)
@@ -412,6 +480,9 @@ def main() -> None:
     parser.add_argument("--d_model", type=int, default=64)
     parser.add_argument("--heads", type=int, default=4)
     parser.add_argument("--layers", type=int, default=2)
+    parser.add_argument("--cnn_channels", type=int, default=96)
+    parser.add_argument("--cnn_layers", type=int, default=3)
+    parser.add_argument("--cnn_kernel_size", type=int, default=5)
     parser.add_argument("--init_u", type=float, default=1.5)
     parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--lr", type=float, default=1e-3)

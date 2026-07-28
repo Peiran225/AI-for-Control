@@ -66,6 +66,7 @@ class NestedFeedbackTransformer(nn.Module):
         action_temperature: float = 1.0,
         action_scale: float = 1.0,
         action_parameterization: str = "logit-temperature",
+        action_offset: float = 0.0,
     ) -> None:
         super().__init__()
         self.m = int(m)
@@ -79,6 +80,9 @@ class NestedFeedbackTransformer(nn.Module):
         self.action_scale = float(action_scale)
         if self.action_scale <= 0.0:
             raise ValueError("action_scale must be positive")
+        self.action_offset = float(action_offset)
+        if self.action_offset < 0.0:
+            raise ValueError("action_offset must be nonnegative")
         if action_parameterization not in {
             "logit-temperature",
             "linear-raw-box",
@@ -145,6 +149,7 @@ class NestedFeedbackTransformer(nn.Module):
                 if key.startswith("base.")
             }
             self.action_scale = float(wrapper["scale"])
+            self.action_offset = 0.0
             self.action_temperature = float(wrapper.get("temperature", 1.0))
             self.action_parameterization = "logit-temperature"
         elif wrapper_class == "LinearRawBoxProjection":
@@ -154,6 +159,7 @@ class NestedFeedbackTransformer(nn.Module):
                 if key.startswith("base.")
             }
             self.action_scale = 1.0
+            self.action_offset = 0.0
             self.action_temperature = 1.0
             self.action_parameterization = "linear-raw-box"
         elif wrapper_class == "BoundaryProjectedControl":
@@ -165,6 +171,17 @@ class NestedFeedbackTransformer(nn.Module):
             self.action_scale = float(
                 wrapper.get("scale", wrapper.get("initial_scale", 1.0))
             )
+            self.action_offset = 0.0
+        elif wrapper_class == "AffineBoundaryProjectedControl":
+            source_state = {
+                key.removeprefix("base."): value
+                for key, value in source_state.items()
+                if key.startswith("base.")
+            }
+            self.action_scale = float(wrapper["scale"])
+            self.action_offset = float(wrapper["offset"])
+            self.action_temperature = 1.0
+            self.action_parameterization = "logit-temperature"
         elif any(key.startswith("time_branch.") for key in source_state):
             source_state = {
                 key.removeprefix("time_branch."): value
@@ -194,8 +211,14 @@ class NestedFeedbackTransformer(nn.Module):
         if self.nominal_reference.numel() == 0:
             raise RuntimeError("a nominal reference trajectory has not been set")
         last = self.nominal_reference.shape[0] - 1
-        indices = torch.round(normalized_time * last).long().clamp(0, last)
-        return self.nominal_reference[indices]
+        position = (normalized_time * last).clamp(0.0, float(last))
+        lower = torch.floor(position).long()
+        upper = (lower + 1).clamp_max(last)
+        fraction = (position - lower.to(position.dtype)).unsqueeze(-1)
+        return (
+            (1.0 - fraction) * self.nominal_reference[lower]
+            + fraction * self.nominal_reference[upper]
+        )
 
     def state_features(
         self, normalized_time: torch.Tensor, state: torch.Tensor
@@ -311,7 +334,8 @@ class NestedFeedbackTransformer(nn.Module):
         return torch.clamp(
             self.action_scale
             * self.umax
-            * torch.sigmoid(combined_logit / self.action_temperature),
+            * torch.sigmoid(combined_logit / self.action_temperature)
+            - self.action_offset,
             0.0,
             self.umax,
         )
@@ -326,6 +350,7 @@ def sample_componentwise_initial_states(
     *,
     generator: torch.Generator | None = None,
     include_nominal: bool = False,
+    include_resistant_heavy: bool = False,
 ) -> torch.Tensor:
     """Sample N0_i = n0 * (1 + radius * Z_i), Z_i iid Uniform[-1,1]."""
 
@@ -339,7 +364,51 @@ def sample_componentwise_initial_states(
     states = cfg.n0 * (1.0 + float(radius) * z)
     if include_nominal and count:
         states[0] = cfg.n0
+    if include_resistant_heavy and count >= 2:
+        resistant_direction = torch.linspace(
+            -1.0,
+            1.0,
+            cfg.m,
+            device=device,
+            dtype=dtype,
+        )
+        states[1] = cfg.n0 * (1.0 + float(radius) * resistant_direction)
     return states
+
+
+def fixed_interval_candidate_mask(
+    cfg: ProblemConfig,
+    *,
+    integrator: str,
+    start: float,
+    end: float,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Return a fixed mask for scalar singular residuals on ``[start, end)``."""
+
+    if not 0.0 <= start < end <= cfg.T:
+        raise ValueError("fixed candidate interval must satisfy 0 <= start < end <= T")
+    if integrator == "euler":
+        time = (
+            torch.arange(cfg.n, device=device, dtype=dtype)
+            * (cfg.T / cfg.n)
+        )
+        mask = (time >= start) & (time < end)
+        return mask.to(dtype=dtype).unsqueeze(0)
+    if integrator == "rk4":
+        stage_fraction = torch.tensor(
+            [0.0, 0.5, 0.5, 1.0],
+            device=device,
+            dtype=dtype,
+        )
+        time = (
+            torch.arange(cfg.n, device=device, dtype=dtype).unsqueeze(-1)
+            + stage_fraction
+        ) * (cfg.T / cfg.n)
+        mask = (time >= start) & (time < end)
+        return mask.to(dtype=dtype).unsqueeze(0)
+    raise ValueError(f"unknown training integrator: {integrator}")
 
 
 def tumor_g(state: torch.Tensor) -> torch.Tensor:
@@ -1398,6 +1467,7 @@ def load_operational_time_control(
     if wrapper_class in {
         "FixedBoxProjection",
         "BoundaryProjectedControl",
+        "AffineBoundaryProjectedControl",
         "LinearRawBoxProjection",
     }:
         source_state = {
@@ -1429,6 +1499,10 @@ def load_operational_time_control(
     elif wrapper_class == "BoundaryProjectedControl":
         scale = float(wrapper.get("scale", wrapper.get("initial_scale", 1.0)))
         control = torch.clamp(scale * control, 0.0, cfg.umax)
+    elif wrapper_class == "AffineBoundaryProjectedControl":
+        scale = float(wrapper["scale"])
+        offset = float(wrapper["offset"])
+        control = torch.clamp(scale * control - offset, 0.0, cfg.umax)
     elif wrapper_class == "LinearRawBoxProjection":
         hidden = model.input(time_features(grid)).unsqueeze(0)
         hidden = model.encoder(hidden).squeeze(0)
@@ -1627,12 +1701,14 @@ def train(args: argparse.Namespace) -> None:
         args.action_temperature,
         args.action_scale,
         args.action_parameterization,
+        args.action_offset,
     ).to(device=device, dtype=dtype)
     time_checkpoint = Path(args.time_checkpoint)
     checkpoint = model.load_time_checkpoint(time_checkpoint)
     args.action_temperature = float(model.action_temperature)
     args.action_scale = float(model.action_scale)
     args.action_parameterization = str(model.action_parameterization)
+    args.action_offset = float(model.action_offset)
     checkpoint_problem = checkpoint.get("problem", {})
     if int(checkpoint_problem.get("n", cfg.n)) != cfg.n:
         raise ValueError("time-only checkpoint grid mismatch")
@@ -1817,7 +1893,16 @@ def train(args: argparse.Namespace) -> None:
             if args.training_integrator == "rk4"
             else source_pack["q"]
         ).detach()
-        if args.candidate_mask_mode == "fixed_binary":
+        if args.candidate_mask_mode == "fixed_interval":
+            source_mask = fixed_interval_candidate_mask(
+                cfg,
+                integrator=args.training_integrator,
+                start=args.fixed_interval_start,
+                end=args.fixed_interval_end,
+                device=device,
+                dtype=dtype,
+            )
+        elif args.candidate_mask_mode == "fixed_binary":
             source_mask = (
                 source_mask >= args.fixed_candidate_threshold
             ).to(source_mask.dtype)
@@ -1870,6 +1955,19 @@ def train(args: argparse.Namespace) -> None:
     validation_initial = test_states_from_directions(
         validation_directions, args.train_radius, cfg, device, dtype
     )
+    if args.include_resistant_heavy and validation_initial.shape[0] >= 2:
+        validation_initial[0] = cfg.n0
+        validation_initial[1] = cfg.n0 * (
+            1.0
+            + args.train_radius
+            * torch.linspace(
+                -1.0,
+                1.0,
+                cfg.m,
+                device=device,
+                dtype=dtype,
+            )
+        )
     generator_device = device if device.type in {"cpu", "cuda"} else torch.device("cpu")
     training_generator = torch.Generator(device=generator_device).manual_seed(
         args.training_sample_seed_base + args.seed
@@ -2007,6 +2105,7 @@ def train(args: argparse.Namespace) -> None:
             dtype,
             generator=training_generator,
             include_nominal=True,
+            include_resistant_heavy=args.include_resistant_heavy,
         ).to(device=device)
         optimizer.zero_grad(set_to_none=True)
         if args.full_gradient_ramp_epochs > 0:
@@ -2248,6 +2347,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Action map; automatically inherited from supported time checkpoints.",
     )
     parser.add_argument(
+        "--action_offset",
+        type=float,
+        default=0.0,
+        help=(
+            "nonnegative post-sigmoid control offset; automatically inherited "
+            "from an AffineBoundaryProjectedControl time checkpoint"
+        ),
+    )
+    parser.add_argument(
         "--center_state_correction",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -2272,6 +2380,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--training_integrator", choices=["euler", "rk4"], default="euler"
     )
     parser.add_argument("--train_radius", type=float, default=0.10)
+    parser.add_argument(
+        "--include_resistant_heavy",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "include the deterministic linear -radius to +radius phenotype "
+            "perturbation as the second training and validation anchor"
+        ),
+    )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--validation_size", type=int, default=64)
@@ -2321,11 +2438,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--candidate_mask_mode",
-        choices=["dynamic", "fixed_soft", "fixed_binary"],
+        choices=["dynamic", "fixed_soft", "fixed_binary", "fixed_interval"],
         default="dynamic",
         help=(
             "use the live candidate mask, or freeze the incoming checkpoint's "
-            "nominal time/stage mask for a controlled gate-escape diagnostic"
+            "nominal time/stage mask; fixed_interval directly selects a stated "
+            "continuous-time interval for scalar residual training"
         ),
     )
     parser.add_argument(
@@ -2334,6 +2452,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.5,
         help="threshold used only by --candidate_mask_mode=fixed_binary",
     )
+    parser.add_argument("--fixed_interval_start", type=float, default=1.5)
+    parser.add_argument("--fixed_interval_end", type=float, default=8.0)
     parser.add_argument("--w0", type=float, default=1.0)
     parser.add_argument("--w1", type=float, default=1.0)
     parser.add_argument("--w2", type=float, default=1.0)

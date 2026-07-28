@@ -3,6 +3,10 @@ __pycache__/
 *.pyc
 .venv/
 venv/
+tmp/
+output/
+outputs/
+external/
 
 # Large/generated training outputs
 runs/

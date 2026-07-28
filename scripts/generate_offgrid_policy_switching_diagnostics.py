@@ -236,6 +236,11 @@ def time_action_from_raw(
     if wrapper_class == "LinearRawBoxProjection":
         return np.clip(raw, 0.0, cfg.umax)
     probability = 1.0 / (1.0 + np.exp(-raw))
+    if wrapper_class == "AffineBoundaryProjectedControl":
+        scale = float(wrapper["scale"])
+        offset = float(wrapper["offset"])
+        base_control = cfg.umax * probability
+        return np.clip(scale * base_control - offset, 0.0, cfg.umax)
     if wrapper_class == "FixedBoxProjection":
         scale = float(wrapper["scale"])
         temperature = float(wrapper.get("temperature", 1.0))
@@ -331,8 +336,14 @@ class DensePolicy:
         if self._nominal_reference is None:
             raise RuntimeError("time-only policy has no nominal reference")
         last = self._nominal_reference.shape[0] - 1
-        index = int(np.clip(np.rint(normalized_time * last), 0, last))
-        return self._nominal_reference[index]
+        position = float(np.clip(normalized_time * last, 0.0, last))
+        lower = int(math.floor(position))
+        upper = min(lower + 1, last)
+        fraction = position - lower
+        return (
+            (1.0 - fraction) * self._nominal_reference[lower]
+            + fraction * self._nominal_reference[upper]
+        )
 
     def state_features(
         self,
@@ -401,13 +412,28 @@ class DensePolicy:
             [numpy_time_features(normalized_time), component, summaries]
         )
 
-    def state_logit(self, normalized_time: float, state: np.ndarray) -> float:
-        value = self.state_features(normalized_time, state)
+    def state_logits(
+        self,
+        normalized_time: float,
+        states: list[np.ndarray],
+    ) -> np.ndarray:
+        """Evaluate one or more state-branch inputs in a single matrix pass."""
+
+        value = np.stack(
+            [
+                self.state_features(normalized_time, state)
+                for state in states
+            ],
+            axis=0,
+        )
         for index, (weight, bias) in enumerate(self._linears):
-            value = weight @ value + bias
+            value = value @ weight.T + bias
             if index < len(self._linears) - 1:
                 value = np.tanh(value)
-        return float(np.asarray(value).reshape(-1)[0])
+        return np.asarray(value, dtype=np.float64).reshape(len(states), -1)[:, 0]
+
+    def state_logit(self, normalized_time: float, state: np.ndarray) -> float:
+        return float(self.state_logits(normalized_time, [state])[0])
 
     def action(self, time: float, state: np.ndarray) -> float:
         raw = self.raw_at(time)
@@ -421,10 +447,12 @@ class DensePolicy:
         if self.feedback_args is None:
             raise RuntimeError("feedback arguments are unavailable")
         normalized_time = float(np.clip(time / self.cfg.T, 0.0, 1.0))
-        correction = self.state_logit(normalized_time, state)
         if bool(getattr(self.feedback_args, "center_state_correction", False)):
             reference = self.reference_at(normalized_time)
-            correction -= self.state_logit(normalized_time, reference)
+            logits = self.state_logits(normalized_time, [state, reference])
+            correction = float(logits[0] - logits[1])
+        else:
+            correction = self.state_logit(normalized_time, state)
         combined = (
             raw
             + float(getattr(self.feedback_args, "correction_gain", 1.0))
@@ -440,6 +468,7 @@ class DensePolicy:
         if parameterization == "linear-raw-box":
             return float(np.clip(combined, 0.0, self.cfg.umax))
         scale = float(getattr(self.feedback_args, "action_scale", 1.0))
+        offset = float(getattr(self.feedback_args, "action_offset", 0.0))
         temperature = float(
             getattr(self.feedback_args, "action_temperature", 1.0)
         )
@@ -447,7 +476,8 @@ class DensePolicy:
             np.clip(
                 scale
                 * self.cfg.umax
-                / (1.0 + math.exp(-combined / temperature)),
+                / (1.0 + math.exp(-combined / temperature))
+                - offset,
                 0.0,
                 self.cfg.umax,
             )
@@ -463,6 +493,8 @@ class TrajectoryResult:
     hamiltonian: np.ndarray
     quantities: dict[str, np.ndarray]
     identity_errors: dict[str, float]
+    normalized_running_cost: float
+    normalized_objective: float
 
 
 def validate_numpy_feedback_action(policy: DensePolicy) -> float | None:
@@ -505,13 +537,26 @@ def integrate_trajectory(
     problem = problem_from_config(policy.cfg)
     params = problem.vectors()
 
-    def state_rhs(time: float, state: np.ndarray) -> np.ndarray:
-        return dynamics_numpy(state, policy.action(time, state), problem)
+    def state_rhs(time: float, augmented: np.ndarray) -> np.ndarray:
+        state = augmented[: problem.m]
+        action = policy.action(time, state)
+        running = float(params["beta"] @ state + problem.gamma * action)
+        return np.concatenate(
+            (
+                dynamics_numpy(state, action, problem),
+                np.asarray([running], dtype=np.float64),
+            )
+        )
 
     state_solution = solve_ivp(
         state_rhs,
         (0.0, problem.T),
-        np.asarray(initial_state, dtype=np.float64),
+        np.concatenate(
+            (
+                np.asarray(initial_state, dtype=np.float64),
+                np.zeros(1, dtype=np.float64),
+            )
+        ),
         method="DOP853",
         rtol=rtol,
         atol=atol,
@@ -520,12 +565,17 @@ def integrate_trajectory(
     )
     if not state_solution.success:
         raise RuntimeError(f"state integration failed: {state_solution.message}")
-    state = np.asarray(state_solution.sol(dense_time), dtype=np.float64).T
+    augmented_state = np.asarray(
+        state_solution.sol(dense_time), dtype=np.float64
+    ).T
+    state = augmented_state[:, : problem.m]
     if not np.all(np.isfinite(state)) or float(state.min()) <= 0.0:
         raise RuntimeError("closed-loop state is nonfinite or nonpositive")
 
     def costate_rhs(time: float, costate: np.ndarray) -> np.ndarray:
-        current_state = np.asarray(state_solution.sol(time), dtype=np.float64)
+        current_state = np.asarray(
+            state_solution.sol(time), dtype=np.float64
+        )[: problem.m]
         control = policy.action(time, current_state)
         return -dH_dN_numpy(current_state, costate, control, problem, params)
 
@@ -547,7 +597,7 @@ def integrate_trajectory(
     control = np.asarray(
         [
             policy.action(float(time), current_state)
-            for time, current_state in zip(dense_time, state, strict=True)
+            for time, current_state in zip(dense_time, state)
         ],
         dtype=np.float64,
     )
@@ -561,13 +611,17 @@ def integrate_trajectory(
     drift = np.asarray(
         [
             dynamics_numpy(current_state, float(action), problem)
-            for current_state, action in zip(state, control, strict=True)
+            for current_state, action in zip(state, control)
         ]
     )
     hamiltonian = (
         (params["beta"][None, :] * state).sum(axis=1)
         + problem.gamma * control
         + (costate * drift).sum(axis=1)
+    )
+    normalized_running_cost = float(augmented_state[-1, problem.m])
+    normalized_objective = float(
+        params["alpha"] @ state[-1] + normalized_running_cost
     )
     return TrajectoryResult(
         time=dense_time,
@@ -581,6 +635,8 @@ def integrate_trajectory(
             "d2H_u_dt2": np.asarray(quantities["ddot_psi"], dtype=np.float64),
         },
         identity_errors=errors,
+        normalized_running_cost=normalized_running_cost,
+        normalized_objective=normalized_objective,
     )
 
 
@@ -598,10 +654,36 @@ def build_grid_flags(
     return on_grid, nearest_index, distance
 
 
+def build_refinement_flags(
+    dense_time: np.ndarray,
+    cfg: ProblemConfig,
+    refinement_multiplier: int,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Classify scalar-refinement queries and strictly held-out dense times."""
+
+    if refinement_multiplier < 1:
+        raise ValueError("refinement_multiplier must be positive")
+    dense_intervals = dense_time.size - 1
+    refinement_intervals = cfg.n * refinement_multiplier
+    if dense_intervals % refinement_intervals:
+        raise ValueError(
+            "dense-points - 1 must be divisible by "
+            "n * refinement-multiplier"
+        )
+    stride = dense_intervals // refinement_intervals
+    on_refinement_grid = np.arange(dense_time.size) % stride == 0
+    on_transformer_support, _, _ = build_grid_flags(dense_time, cfg)
+    refinement_query = on_refinement_grid & ~on_transformer_support
+    held_out = ~on_refinement_grid
+    return on_refinement_grid, refinement_query, held_out
+
+
 def write_timeseries(
     path: Path,
     results: dict[str, dict[str, TrajectoryResult]],
     on_grid: np.ndarray,
+    refinement_query: np.ndarray,
+    held_out_from_refinement: np.ndarray,
     nearest_index: np.ndarray,
     distance: np.ndarray,
 ) -> None:
@@ -613,6 +695,8 @@ def write_timeseries(
         "t",
         "is_training_grid",
         "is_off_grid",
+        "is_refinement_query",
+        "is_held_out_from_refinement",
         "nearest_training_grid_index",
         "distance_to_training_grid",
         "u",
@@ -638,6 +722,12 @@ def write_timeseries(
                             "t": f"{float(time):.16g}",
                             "is_training_grid": int(on_grid[index]),
                             "is_off_grid": int(not on_grid[index]),
+                            "is_refinement_query": int(
+                                refinement_query[index]
+                            ),
+                            "is_held_out_from_refinement": int(
+                                held_out_from_refinement[index]
+                            ),
                             "nearest_training_grid_index": int(
                                 nearest_index[index]
                             ),
@@ -661,6 +751,9 @@ def write_timeseries(
 def build_summary_rows(
     results: dict[str, dict[str, TrajectoryResult]],
     on_grid: np.ndarray,
+    on_refinement_grid: np.ndarray,
+    refinement_query: np.ndarray,
+    held_out_from_refinement: np.ndarray,
     *,
     interior_start: float,
     interior_end: float,
@@ -678,12 +771,25 @@ def build_summary_rows(
                 "all_points": np.ones(result.time.shape, dtype=bool),
                 "training_grid_coordinates": on_grid,
                 "off_grid_coordinates": ~on_grid,
+                "transformer_support": on_grid,
+                "refinement_queries": refinement_query,
+                "refinement_grid": on_refinement_grid,
+                "held_out_from_refinement": held_out_from_refinement,
             }
             for region, region_mask in regions.items():
                 for subset, subset_mask in subsets.items():
                     mask = region_mask & subset_mask
                     for quantity in QUANTITY_ORDER:
                         values = result.quantities[quantity][mask]
+                        if values.size == 0:
+                            rms = None
+                            mean_abs = None
+                            max_abs = None
+                        else:
+                            absolute = np.abs(values)
+                            rms = float(np.sqrt(np.mean(values**2)))
+                            mean_abs = float(np.mean(absolute))
+                            max_abs = float(np.max(absolute))
                         rows.append(
                             {
                                 "case_id": case_id,
@@ -692,9 +798,9 @@ def build_summary_rows(
                                 "subset": subset,
                                 "quantity": quantity,
                                 "count": int(values.size),
-                                "rms": float(np.sqrt(np.mean(values**2))),
-                                "mean_abs": float(np.mean(np.abs(values))),
-                                "max_abs": float(np.max(np.abs(values))),
+                                "rms": rms,
+                                "mean_abs": mean_abs,
+                                "max_abs": max_abs,
                             }
                         )
     return rows
@@ -733,6 +839,8 @@ def plot_results(
     path: Path,
     results: dict[str, dict[str, TrajectoryResult]],
     on_grid: np.ndarray,
+    refinement_query: np.ndarray,
+    held_out_from_refinement: np.ndarray,
     *,
     xlim: tuple[float, float],
     title: str,
@@ -766,7 +874,12 @@ def plot_results(
         nominal = results[case_id]["nominal"]
         visible = (nominal.time >= xlim[0]) & (nominal.time <= xlim[1])
         on_indices = np.flatnonzero(on_grid & visible)[::40]
-        off_midpoint_indices = np.flatnonzero((~on_grid) & visible)[20::40]
+        refinement_indices = np.flatnonzero(
+            refinement_query & visible
+        )[::280]
+        held_out_indices = np.flatnonzero(
+            held_out_from_refinement & visible
+        )[::280]
         marker_values = (
             nominal.control,
             nominal.quantities["H_u"],
@@ -786,14 +899,24 @@ def plot_results(
                 label="training-grid coordinate" if row == 0 else None,
             )
             axes[row, column].scatter(
-                nominal.time[off_midpoint_indices],
-                values[off_midpoint_indices],
+                nominal.time[refinement_indices],
+                values[refinement_indices],
+                marker="|",
+                s=18,
+                linewidths=0.8,
+                color="#555555",
+                zorder=5,
+                label="scalar-refinement query" if row == 0 else None,
+            )
+            axes[row, column].scatter(
+                nominal.time[held_out_indices],
+                values[held_out_indices],
                 marker="x",
                 s=12,
                 linewidths=0.7,
                 color="#222222",
                 zorder=5,
-                label="off-grid query" if row == 0 else None,
+                label="held-out dense query" if row == 0 else None,
             )
         for row in range(4):
             axes[row, column].set_xlim(*xlim)
@@ -812,7 +935,7 @@ def plot_results(
         handles,
         labels,
         loc="lower center",
-        ncol=4,
+        ncol=5,
         frameon=False,
         bbox_to_anchor=(0.5, 0.018),
     )
@@ -822,8 +945,8 @@ def plot_results(
         0.052,
         (
             f"Lines use {on_grid.size:,} direct policy queries; "
-            f"{int((~on_grid).sum()):,} query times are outside the n=800 "
-            "training grid. Markers are thinned for visibility."
+            f"{int(held_out_from_refinement.sum()):,} query times were not "
+            "used by scalar refinement. Markers are thinned for visibility."
         ),
         ha="center",
         va="center",
@@ -845,6 +968,11 @@ def plot_results(
 
 def evaluate(args: argparse.Namespace) -> None:
     torch.set_num_threads(args.torch_threads)
+    # Match the differentiable Transformer path used during refinement.
+    # PyTorch's fused inference-only MHA fast path is numerically different
+    # enough to perturb this highly sensitive control problem.
+    if hasattr(torch.backends, "mha"):
+        torch.backends.mha.set_fastpath_enabled(False)
     out_dir = resolve(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     time_checkpoint = resolve(args.time_checkpoint)
@@ -862,6 +990,26 @@ def evaluate(args: argparse.Namespace) -> None:
     dense_time = np.linspace(0.0, cfg.T, args.dense_points, dtype=np.float64)
     dense_normalized = torch.from_numpy(dense_time / cfg.T).to(torch.float64)
     coarse_normalized = torch.linspace(0.0, 1.0, cfg.n + 1, dtype=torch.float64)
+    on_grid, nearest_index, distance = build_grid_flags(dense_time, cfg)
+    if int(on_grid.sum()) != cfg.n + 1:
+        raise RuntimeError(
+            f"expected {cfg.n + 1} common grid coordinates, found "
+            f"{int(on_grid.sum())}"
+        )
+    off_grid_count = int((~on_grid).sum())
+    if off_grid_count == 0:
+        raise RuntimeError("the diagnostic grid contains no off-grid times")
+    (
+        on_refinement_grid,
+        refinement_query,
+        held_out_from_refinement,
+    ) = build_refinement_flags(
+        dense_time,
+        cfg,
+        args.refinement_multiplier,
+    )
+    off_grid_tensor = torch.from_numpy(~on_grid)
+    on_grid_indices = torch.from_numpy(nearest_index[on_grid])
 
     policy_specs: dict[str, DensePolicy] = {}
     with torch.inference_mode():
@@ -890,18 +1038,24 @@ def evaluate(args: argparse.Namespace) -> None:
             cf_dense_raw = torch.from_numpy(cached["cf_dense_raw"])
             der_dense_raw = torch.from_numpy(cached["der_dense_raw"])
     if not cache_loaded:
-        print("[time_only] fixed-support off-grid policy queries", flush=True)
-        time_dense_raw = fixed_support_query_logits(
+        time_dense_raw = torch.empty_like(dense_normalized)
+        cf_dense_raw = torch.empty_like(dense_normalized)
+        der_dense_raw = torch.empty_like(dense_normalized)
+        time_dense_raw[torch.from_numpy(on_grid)] = time_coarse_raw[on_grid_indices]
+        cf_dense_raw[torch.from_numpy(on_grid)] = cf_coarse_raw[on_grid_indices]
+        der_dense_raw[torch.from_numpy(on_grid)] = der_coarse_raw[on_grid_indices]
+        print("[time_only] strictly off-grid fixed-support queries", flush=True)
+        time_dense_raw[off_grid_tensor] = fixed_support_query_logits(
             time_model,
             coarse_normalized,
-            dense_normalized,
+            dense_normalized[off_grid_tensor],
             batch_size=args.query_batch_size,
         )
-        print("[feedback_cf] fixed-support off-grid policy queries", flush=True)
-        cf_dense_raw = fixed_support_query_logits(
+        print("[feedback_cf] strictly off-grid fixed-support queries", flush=True)
+        cf_dense_raw[off_grid_tensor] = fixed_support_query_logits(
             cf_model.time_branch,
             coarse_normalized,
-            dense_normalized,
+            dense_normalized[off_grid_tensor],
             batch_size=args.query_batch_size,
         )
         if all(
@@ -912,16 +1066,16 @@ def evaluate(args: argparse.Namespace) -> None:
             for key in cf_model.time_branch.state_dict()
         ):
             print(
-                "[feedback_der] reusing identical fixed-support time branch",
+                "[feedback_der] reusing identical dense time branch",
                 flush=True,
             )
             der_dense_raw = cf_dense_raw.clone()
         else:
-            print("[feedback_der] fixed-support off-grid policy queries", flush=True)
-            der_dense_raw = fixed_support_query_logits(
+            print("[feedback_der] strictly off-grid fixed-support queries", flush=True)
+            der_dense_raw[off_grid_tensor] = fixed_support_query_logits(
                 der_model.time_branch,
                 coarse_normalized,
-                dense_normalized,
+                dense_normalized[off_grid_tensor],
                 batch_size=args.query_batch_size,
             )
         np.savez_compressed(
@@ -963,16 +1117,6 @@ def evaluate(args: argparse.Namespace) -> None:
         feedback_args=der_args,
     )
 
-    on_grid, nearest_index, distance = build_grid_flags(dense_time, cfg)
-    if int(on_grid.sum()) != cfg.n + 1:
-        raise RuntimeError(
-            f"expected {cfg.n + 1} common grid coordinates, found "
-            f"{int(on_grid.sum())}"
-        )
-    off_grid_count = int((~on_grid).sum())
-    if off_grid_count == 0:
-        raise RuntimeError("the diagnostic grid contains no off-grid times")
-
     problem = problem_from_config(cfg)
     states = {
         "nominal": np.full(problem.m, problem.n0, dtype=np.float64),
@@ -1007,6 +1151,9 @@ def evaluate(args: argparse.Namespace) -> None:
     rows = build_summary_rows(
         results,
         on_grid,
+        on_refinement_grid,
+        refinement_query,
+        held_out_from_refinement,
         interior_start=args.interior_start,
         interior_end=args.interior_end,
     )
@@ -1015,12 +1162,19 @@ def evaluate(args: argparse.Namespace) -> None:
         out_dir / "offgrid_switching_timeseries.csv",
         results,
         on_grid,
+        refinement_query,
+        held_out_from_refinement,
         nearest_index,
         distance,
     )
     arrays: dict[str, np.ndarray] = {
         "time": dense_time,
         "is_training_grid": on_grid.astype(np.int8),
+        "is_transformer_support": on_grid.astype(np.int8),
+        "is_refinement_query": refinement_query.astype(np.int8),
+        "is_held_out_from_refinement": held_out_from_refinement.astype(
+            np.int8
+        ),
         "nearest_training_grid_index": nearest_index,
         "distance_to_training_grid": distance,
     }
@@ -1032,6 +1186,12 @@ def evaluate(args: argparse.Namespace) -> None:
             arrays[f"{prefix}__state"] = result.state
             arrays[f"{prefix}__costate"] = result.costate
             arrays[f"{prefix}__H"] = result.hamiltonian
+            arrays[f"{prefix}__normalized_objective"] = np.asarray(
+                result.normalized_objective
+            )
+            arrays[f"{prefix}__physical_objective"] = np.asarray(
+                args.report_scale_factor * result.normalized_objective
+            )
             for quantity in QUANTITY_ORDER:
                 arrays[f"{prefix}__{quantity}"] = result.quantities[quantity]
     np.savez_compressed(out_dir / "offgrid_trajectories.npz", **arrays)
@@ -1040,6 +1200,8 @@ def evaluate(args: argparse.Namespace) -> None:
         out_dir / "offgrid_policy_switching_full_horizon.pdf",
         results,
         on_grid,
+        refinement_query,
+        held_out_from_refinement,
         xlim=(0.0, cfg.T),
         title="Direct off-grid policy queries and scalar switching-function diagnostics",
     )
@@ -1047,6 +1209,8 @@ def evaluate(args: argparse.Namespace) -> None:
         out_dir / "offgrid_policy_switching_interior.pdf",
         results,
         on_grid,
+        refinement_query,
+        held_out_from_refinement,
         xlim=(args.interior_start, args.interior_end),
         title="Direct off-grid policy queries on the interior interval",
     )
@@ -1131,6 +1295,13 @@ def evaluate(args: argparse.Namespace) -> None:
             "training_grid_coordinates": int(on_grid.sum()),
             "strictly_off_grid_coordinates": off_grid_count,
             "off_grid_fraction": float((~on_grid).mean()),
+            "scalar_refinement_multiplier": args.refinement_multiplier,
+            "scalar_refinement_query_coordinates": int(
+                refinement_query.sum()
+            ),
+            "held_out_from_scalar_refinement_coordinates": int(
+                held_out_from_refinement.sum()
+            ),
             "off_grid_examples_near_t_1_5": sorted(
                 float(value) for value in near_one_point_five
             ),
@@ -1169,6 +1340,19 @@ def evaluate(args: argparse.Namespace) -> None:
             }
             for case_id, state_results in results.items()
         },
+        "objectives": {
+            case_id: {
+                state_id: {
+                    "normalized": result.normalized_objective,
+                    "physical": (
+                        args.report_scale_factor
+                        * result.normalized_objective
+                    ),
+                }
+                for state_id, result in state_results.items()
+            }
+            for case_id, state_results in results.items()
+        },
         "outputs": {
             "timeseries_csv": "offgrid_switching_timeseries.csv",
             "summary_csv": "offgrid_switching_summary.csv",
@@ -1196,6 +1380,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_DIR)
     parser.add_argument("--dense-points", type=int, default=1601)
+    parser.add_argument(
+        "--refinement-multiplier",
+        type=int,
+        default=1,
+        help=(
+            "number of scalar-refinement subintervals per original Transformer "
+            "interval; denser coordinates are reported as held out"
+        ),
+    )
     parser.add_argument("--query-batch-size", type=int, default=16)
     parser.add_argument("--torch-threads", type=int, default=4)
     parser.add_argument("--interior-start", type=float, default=1.0)
@@ -1203,6 +1396,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rtol", type=float, default=1.0e-10)
     parser.add_argument("--atol", type=float, default=1.0e-12)
     parser.add_argument("--max-step", type=float)
+    parser.add_argument(
+        "--report-scale-factor",
+        type=float,
+        default=400.0,
+        help="convert normalized training weights to the reported physical scale",
+    )
     return parser.parse_args()
 
 

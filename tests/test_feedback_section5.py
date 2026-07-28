@@ -17,6 +17,7 @@ from train_feedback_section5 import (
     compose_section5_optimality_loss,
     compute_costate,
     compute_costate_rk4,
+    fixed_interval_candidate_mask,
     load_operational_time_control,
     objective_per_sample,
     persistence_gate,
@@ -59,6 +60,46 @@ def test_componentwise_sampler_is_bounded_and_not_a_common_scale() -> None:
     assert torch.all(states >= 9.0)
     assert torch.all(states <= 11.0)
     assert torch.any(states.std(dim=-1) > 0.1)
+
+
+def test_componentwise_sampler_can_include_named_anchor_states() -> None:
+    cfg = make_cfg()
+    states = sample_componentwise_initial_states(
+        4,
+        cfg,
+        0.1,
+        torch.device("cpu"),
+        torch.float64,
+        include_nominal=True,
+        include_resistant_heavy=True,
+    )
+    torch.testing.assert_close(
+        states[0], torch.full((cfg.m,), cfg.n0, dtype=torch.float64)
+    )
+    expected = cfg.n0 * (
+        1.0 + 0.1 * torch.linspace(-1.0, 1.0, cfg.m, dtype=torch.float64)
+    )
+    torch.testing.assert_close(states[1], expected)
+
+
+def test_fixed_interval_mask_uses_rk4_stage_times() -> None:
+    cfg = make_cfg(n=4)
+    mask = fixed_interval_candidate_mask(
+        cfg,
+        integrator="rk4",
+        start=0.5,
+        end=1.5,
+        device=torch.device("cpu"),
+        dtype=torch.float64,
+    )
+    assert mask.shape == (1, cfg.n, 4)
+    stage_times = (
+        torch.arange(cfg.n, dtype=torch.float64).unsqueeze(-1)
+        + torch.tensor([0.0, 0.5, 0.5, 1.0], dtype=torch.float64)
+    ) * (cfg.T / cfg.n)
+    torch.testing.assert_close(
+        mask[0], ((stage_times >= 0.5) & (stage_times < 1.5)).double()
+    )
 
 
 def test_zero_state_head_reproduces_time_branch() -> None:
@@ -122,6 +163,73 @@ def test_lower_action_temperature_sharpens_smooth_bound_approach() -> None:
     assert sharpened_action[1] > regular_action[1]
 
 
+def test_affine_action_offset_is_applied_after_the_sigmoid() -> None:
+    cfg = make_cfg()
+    model = NestedFeedbackTransformer(
+        cfg.m,
+        cfg.umax,
+        15.0,
+        (16,),
+        16,
+        4,
+        1,
+        1.5,
+        action_scale=1.04,
+        action_offset=0.06,
+    ).double().eval()
+    state = torch.full((3, cfg.m), cfg.n0, dtype=torch.float64)
+    time = torch.full((3,), 0.25, dtype=torch.float64)
+    logits = torch.tensor([-8.0, 0.3, 8.0], dtype=torch.float64)
+    action = model.interval_action(
+        logits, time, state, state_mode="w_zero"
+    )
+    expected = torch.clamp(
+        1.04 * cfg.umax * torch.sigmoid(logits) - 0.06,
+        0.0,
+        cfg.umax,
+    )
+    assert torch.equal(action, expected)
+
+
+def test_affine_time_checkpoint_load_is_operationally_exact(
+    tmp_path: Path,
+) -> None:
+    cfg = make_cfg(n=4)
+    model = make_model(cfg).eval()
+    checkpoint = tmp_path / "affine.pt"
+    torch.save(
+        {
+            "model_state": {
+                f"base.{key}": value
+                for key, value in model.time_branch.state_dict().items()
+            },
+            "base_model_args": {
+                "d_model": 16,
+                "heads": 4,
+                "layers": 1,
+                "init_u": 1.5,
+            },
+            "problem": cfg.__dict__,
+            "wrapper": {
+                "class": "AffineBoundaryProjectedControl",
+                "scale": 1.04,
+                "offset": 0.06,
+            },
+        },
+        checkpoint,
+    )
+    loaded = load_operational_time_control(
+        checkpoint, cfg, torch.device("cpu"), torch.float64
+    )
+    grid = torch.linspace(0.0, 1.0, cfg.n + 1, dtype=torch.float64)
+    expected = torch.clamp(
+        1.04 * model.time_branch(grid)[: cfg.n] - 0.06,
+        0.0,
+        cfg.umax,
+    )
+    assert torch.equal(loaded, expected)
+
+
 def test_relative_nominal_features_center_the_reference_trajectory() -> None:
     cfg = make_cfg(n=4)
     model = NestedFeedbackTransformer(
@@ -144,6 +252,67 @@ def test_relative_nominal_features_center_the_reference_trajectory() -> None:
     shifted = model.state_features(time, 1.1 * reference[2:3])
     assert torch.equal(centered[:, 6:], torch.zeros_like(centered[:, 6:]))
     assert torch.allclose(shifted[:, 6 : 6 + cfg.m], torch.full((1, cfg.m), 0.1, dtype=torch.float64))
+
+
+def test_nominal_reference_is_linearly_interpolated_off_grid() -> None:
+    cfg = make_cfg(n=4)
+    model = make_model(cfg)
+    reference = torch.stack(
+        [
+            torch.full((cfg.m,), 10.0 + 2.0 * index, dtype=torch.float64)
+            for index in range(5)
+        ]
+    )
+    model.set_nominal_reference(reference)
+    time = torch.tensor([0.125, 0.625], dtype=torch.float64)
+    interpolated = model.nominal_state_at(time)
+    expected = torch.stack(
+        [
+            torch.full((cfg.m,), 11.0, dtype=torch.float64),
+            torch.full((cfg.m,), 15.0, dtype=torch.float64),
+        ]
+    )
+    assert torch.equal(interpolated, expected)
+
+
+def test_total_burden_features_discard_composition_at_fixed_total() -> None:
+    cfg = make_cfg(n=4)
+    model = NestedFeedbackTransformer(
+        cfg.m,
+        cfg.umax,
+        15.0,
+        (16,),
+        16,
+        4,
+        1,
+        1.5,
+        state_feature_mode="total_burden",
+    ).double()
+    reference_state = torch.linspace(8.0, 12.0, cfg.m, dtype=torch.float64)
+    reference = torch.stack([reference_state for _ in range(5)])
+    model.set_nominal_reference(reference)
+    time = torch.tensor([0.5], dtype=torch.float64)
+    composition_shift = reference_state.clone()
+    composition_shift[0] += 2.0
+    composition_shift[-1] -= 2.0
+    reference_features = model.state_features(time, reference[2:3])
+    shifted_features = model.state_features(time, composition_shift.unsqueeze(0))
+    assert torch.equal(reference_features, shifted_features)
+    scaled_features = model.state_features(time, 1.1 * reference[2:3])
+    state_features = scaled_features[:, 6:]
+    assert torch.equal(
+        state_features[:, : cfg.m],
+        torch.zeros_like(state_features[:, : cfg.m]),
+    )
+    assert torch.allclose(
+        state_features[:, cfg.m],
+        torch.tensor(math.log(1.1), dtype=torch.float64),
+        atol=1e-14,
+    )
+    assert torch.equal(
+        state_features[:, cfg.m + 1 :],
+        torch.zeros_like(state_features[:, cfg.m + 1 :]),
+    )
 
 
 def test_burden_composition_features_separate_scale_and_composition() -> None:

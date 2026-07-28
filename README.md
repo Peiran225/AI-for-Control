@@ -28,6 +28,26 @@ optimality-condition loss used for training.
 - [`scripts/generate_two_state_three_case_main_figures.py`](scripts/generate_two_state_three_case_main_figures.py)
   generates the nominal versus resistant-heavy comparison for all three cases.
 
+## Current direct-initialized training pipeline
+
+The current paper experiments use the following reproducible stages:
+
+1. `scripts/fit_current_direct_reference_transformer.py` initializes the
+   time-only Transformer from the nominal direct-transcription schedule.
+2. `scripts/refine_direct_initialized_output_head_dop853_lm.py` refines the
+   time-only output head with scalar PMP residuals.
+3. `scripts/initialize_feedback_from_direct_trajectories.py` initializes the
+   state branch for the two feedback policies.
+4. `scripts/refine_feedback_offgrid_scalar.py` performs continuous-policy
+   scalar PMP refinement.
+5. `scripts/run_final_paper_recompute.py` and
+   `scripts/aggregate_final_paper_recompute.py` recompute the common
+   diagnostics and tables from frozen checkpoints.
+
+`scripts/run_controlled_three_case_equal_budget.py` is the controlled
+three-case training entry point used to compare the policy classes with the
+same optimizer, update count, minibatch stream, and numerical settings.
+
 ## Environment and checks
 
 ```bash
