@@ -39,6 +39,11 @@ from scripts.continue_teacher_free_linear_box_projection import (  # noqa: E402
     source_model_from_payload,
 )
 from scripts.fit_current_direct_reference_transformer import falling_width  # noqa: E402
+from scripts.fixed_nominal_opt_gap import (  # noqa: E402
+    TimeOnlyPolicyAdapter,
+    evaluate_fixed_nominal_der,
+    metric_metadata,
+)
 from scripts.refine_time_only_singular_plateau import rk4_reduced_objective  # noqa: E402
 from scripts.train_teacher_free_resolution_curriculum import evaluate  # noqa: E402
 from train_paper_pmp_kkt import ProblemConfig, build_params, set_seed  # noqa: E402
@@ -193,6 +198,15 @@ def main() -> None:
     )
     parser.add_argument("--projected-linf-weight", type=float, default=100.0)
     parser.add_argument("--eval-every", type=int, default=5)
+    parser.add_argument(
+        "--fixed-validation-every",
+        type=int,
+        default=50,
+        help=(
+            "evaluate the common nominal DER optimality gap every this many "
+            "AdamW updates; 0 disables the trace"
+        ),
+    )
     parser.add_argument("--grad-clip", type=float, default=5.0)
     parser.add_argument("--direct-rmse-guard-factor", type=float, default=1.25)
     parser.add_argument(
@@ -235,6 +249,7 @@ def main() -> None:
     )
     physical_t = np.linspace(0.0, cfg.T, cfg.n + 1)
     params = build_params(cfg, device, torch.float64)
+    fixed_validation_model = TimeOnlyPolicyAdapter(model, cfg)
 
     direct = np.load(direct_path)
     direct_t = np.asarray(direct["t"], dtype=np.float64)
@@ -259,6 +274,7 @@ def main() -> None:
     )
 
     history: list[dict[str, Any]] = []
+    fixed_validation_history: list[dict[str, Any]] = []
     candidates: list[
         tuple[float, float, dict[str, torch.Tensor], np.ndarray, str, int]
     ] = []
@@ -268,6 +284,25 @@ def main() -> None:
         lr=args.supervised_learning_rate,
         weight_decay=0.0,
     )
+
+    def record_fixed_validation(epoch: int) -> None:
+        if args.fixed_validation_every <= 0:
+            return
+        fixed_validation_history.append(
+            {
+                "phase": "time_only_initialization",
+                "phase_step": epoch,
+                "optimizer_step": epoch,
+                **evaluate_fixed_nominal_der(
+                    fixed_validation_model,
+                    cfg,
+                    params,
+                    state_mode="w_zero",
+                ),
+            }
+        )
+
+    record_fixed_validation(0)
 
     def supervised_objective() -> tuple[
         torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor
@@ -301,6 +336,11 @@ def main() -> None:
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
         )
         optimizer.step()
+        if args.fixed_validation_every > 0 and (
+            epoch % args.fixed_validation_every == 0
+            or epoch == args.supervised_epochs
+        ):
+            record_fixed_validation(epoch)
         history.append(
             {
                 "phase": "full_network_direct_supervision",
@@ -332,7 +372,6 @@ def main() -> None:
                 f"Linf={linf:.3e}",
                 flush=True,
             )
-
     if args.supervised_lbfgs_iterations > 0:
         best_before_lbfgs = min(
             candidates, key=lambda item: (item[0], item[1])
@@ -570,6 +609,11 @@ def main() -> None:
         supervised_u=supervised_control,
     )
     write_csv(out_dir / "history.csv", history)
+    if fixed_validation_history:
+        write_csv(
+            out_dir / "fixed_validation_opt_gap.csv",
+            fixed_validation_history,
+        )
     summary = {
         "status": "completed",
         "scope": "direct-assisted diagnostic; not teacher-free training",
@@ -581,6 +625,7 @@ def main() -> None:
         "full_transformer_parameters_trained": True,
         "switch_centers_detected_from_direct_target": switch_centers,
         "training": vars(args),
+        "fixed_validation_metric": metric_metadata(),
         "device": str(device),
         "best_supervised": {
             "epoch": best_supervised[5],

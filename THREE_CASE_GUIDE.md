@@ -35,59 +35,22 @@ also include the complete reduced-gradient residual with the state dependence
 
 ### 3.1 Time-only `u(t)`
 
-The report-compatible training chain starts with the PMP/KKT Transformer on
-the `n=200` grid:
-
-```bash
-.venv/bin/python train_paper_pmp_kkt.py \
-  --model transformer \
-  --n 200 \
-  --epochs 1200 \
-  --lr 5e-4 \
-  --singular_eps 0.1 \
-  --singular_tau 0.03 \
-  --smooth_weight 3 \
-  --seed 4 \
-  --device cpu \
-  --float64 \
-  --out_dir runs/time_base_seed4
-```
-
-It is then continued to `n=800` using the projected reduced-gradient residual
-with annealed PMP and smoothness terms:
-
-```bash
-.venv/bin/python scripts/train_teacher_free_resolution_curriculum.py \
-  --start-checkpoint runs/time_base_seed4/best_pmp_kkt.pt \
-  --out-dir runs/time_curriculum \
-  --seed 106 \
-  --scale 1.08 \
-  --temperature 0.7 \
-  --epochs 300,220,180 \
-  --learning-rates 8e-5,3e-5,1e-5 \
-  --linf-weights 0.2,0.5,1 \
-  --pmp-weights 0.02,0.004,0 \
-  --smooth-weights 0.0001,0.00002,0
-```
-
-This produces the compatible intermediate checkpoint
-`runs/time_curriculum/stage_3_n800/selected_checkpoint.pt`; it is not the
-selected checkpoint used for the reported figures.  The reported time-only
-checkpoint also passes through projected-fixed-point, strict-KKT, and L-BFGS
-continuation stages implemented in:
+The reported pipeline first fits the Transformer to the nominal
+direct-transcription schedule and then removes that target before scalar PMP
+refinement.  The relevant stages are:
 
 ```text
-scripts/train_teacher_free_resolution_curriculum.py
-scripts/continue_teacher_free_projected_fixed_point.py
-scripts/continue_teacher_free_strict_kkt.py
-scripts/continue_teacher_free_strict_optimality.py
+scripts/fit_current_direct_reference_transformer.py
+scripts/fit_current_direct_reference_transformer_full.py
+scripts/continue_direct_initialized_scalar_transformer.py
+scripts/continue_direct_initialized_offgrid_scalar_transformer.py
 ```
 
-Each continuation script accepts the preceding checkpoint explicitly.  Run
-the corresponding script with `--help` for its stage-specific settings.
-`scripts/train_teacher_free_native_n800.py` is a separate random-start
-experiment; its checkpoint format is not the input to the three-case figure
-generators.
+Each stage accepts the preceding checkpoint explicitly and records its
+arguments in the output directory.  Run the corresponding script with
+`--help` for the complete stage-specific settings.  The teacher-free
+curriculum scripts remain available as ablations but do not produce the
+reported checkpoint.
 
 ### 3.2 Case 1 `u(N,t)`
 

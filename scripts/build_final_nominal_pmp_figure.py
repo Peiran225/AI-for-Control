@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 r"""Build the final nominal PMP figure and its two-state supplement.
 
-The production inputs are the dense diagnostic NPZ files for PMP/KKT-Time,
-PMP/KKT-CF, and PMP/KKT-DER.  The main-paper figure follows the reporting
+The production inputs are the dense diagnostic NPZ files for PMP-Time,
+PMP-CF, and PMP-DER.  The main-paper figure follows the reporting
 contract in the manuscript: its curves use the 801 base-grid coordinates
 together with all 800 interval midpoints.  For readability after the figure
 is reduced to manuscript size, it displays a representative subset of:
@@ -36,14 +36,14 @@ import numpy as np
 
 
 CASE_SPECS = (
-    ("time_only", "PMP/KKT-Time"),
-    ("cf", "PMP/KKT-CF"),
-    ("der", "PMP/KKT-DER"),
+    ("time_only", "PMP-Time"),
+    ("cf", "PMP-CF"),
+    ("der", "PMP-DER"),
 )
 STATES = ("nominal", "resistant_heavy")
 STATE_LABELS = {
     "nominal": "Nominal",
-    "resistant_heavy": "Resistant-heavy",
+    "resistant_heavy": r"Moderate shift ($r=0.10$)",
 }
 STATE_COLORS = {
     "nominal": "#1F5A85",
@@ -58,9 +58,9 @@ DERIVATIVES = ("H_u", "dH_u_dt", "d2H_u_dt2")
 ROW_LABELS = {
     "u": r"control $u(t)$",
     "population": r"total population $\sum_i N_i(t)$",
-    "H_u": r"$H_u(t)$",
-    "dH_u_dt": r"$\mathrm{d}H_u(t)/\mathrm{d}t$",
-    "d2H_u_dt2": r"$\mathrm{d}^2H_u(t)/\mathrm{d}t^2$",
+    "H_u": r"$\psi(t)$",
+    "dH_u_dt": r"$\dot{\psi}(t)$",
+    "d2H_u_dt2": r"$\ddot{\psi}(t)$",
 }
 MASK_ALIASES = {
     "base_grid": (
@@ -744,10 +744,10 @@ def draw_markers(
         values[node_indices],
         linestyle="none",
         marker="o",
-        markersize=2.8,
+        markersize=2.65,
         markerfacecolor="white",
         markeredgecolor=color,
-        markeredgewidth=0.65,
+        markeredgewidth=0.62,
         alpha=1.0,
         zorder=5,
     )
@@ -757,8 +757,8 @@ def draw_markers(
             values[query_indices],
             linestyle="none",
             marker="x",
-            markersize=3.1,
-            markeredgewidth=0.75,
+            markersize=2.65,
+            markeredgewidth=0.62,
             color=query_color,
             alpha=1.0,
             zorder=6,
@@ -817,7 +817,7 @@ def figure_legends(
                 else STATE_COLORS["nominal"]
             ),
             markeredgewidth=0.7,
-            markersize=3.9,
+            markersize=3.4,
             label=r"$n=800$ node",
         ),
         Line2D(
@@ -831,7 +831,7 @@ def figure_legends(
                 else STATE_COLORS["resistant_heavy"]
             ),
             markeredgewidth=0.7,
-            markersize=4.0,
+            markersize=3.4,
             label=(
                 r"outside $q=8$ grid"
                 if supplemental
@@ -1024,7 +1024,11 @@ def build_figure(
                     linewidth=0.62,
                     zorder=1,
                 )
-            axis.set_xlim(0.0, 10.0)
+            axis.set_xlim(
+                (interior_start, interior_end)
+                if field in DERIVATIVES
+                else (0.0, 10.0)
+            )
             if column == 0:
                 axis.set_ylabel(ROW_LABELS[field], labelpad=3.0)
             if row == 4:

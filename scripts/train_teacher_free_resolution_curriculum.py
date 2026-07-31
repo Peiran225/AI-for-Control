@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Teacher-free optimality-condition curriculum for a time-only Transformer.
+"""Teacher-free optimality-condition curriculum for a time-only neural policy.
 
 The training path deliberately has no direct-solution, manual-target, switching-
 time, switching-mask, or objective-value supervision.  It starts from the
@@ -10,7 +10,7 @@ gradient mapping
 
 The differentiable RK4 rollout inside ``F_h`` includes the complete N=N(u)
 dependence.  Resolution is increased from n=200 to n=400 and then n=800 while
-retaining the same Transformer weights.  Optional PMP/KKT and global
+retaining the same policy-network weights.  Optional PMP/KKT and global
 smoothness terms are generic optimality/curriculum terms; neither uses a target
 control or a prescribed switching region, and smoothness is zero in the final
 part of every stage.
@@ -58,6 +58,7 @@ from train_paper_pmp_kkt import (  # noqa: E402
     pmp_kkt_loss,
     set_seed,
 )
+from tumor_problem import TumorProblem  # noqa: E402
 
 
 DEFAULT_START = (
@@ -251,7 +252,20 @@ def evaluate(
     )
     if high_accuracy:
         high, _ = high_accuracy_metrics(
-            physical_t, u, plateau_start=1.0, plateau_end=8.5
+            physical_t,
+            u,
+            plateau_start=1.0,
+            plateau_end=8.5,
+            problem=TumorProblem(
+                T=cfg.T,
+                m=cfg.m,
+                umax=cfg.umax,
+                beta=cfg.beta,
+                alpha=cfg.alpha,
+                gamma=cfg.gamma,
+                n0=cfg.n0,
+                m_suppression=cfg.m_suppression,
+            ),
         )
         metrics.update(plateau_summary(high))
     model.train()
@@ -307,6 +321,15 @@ def main() -> None:
     parser.add_argument("--smooth-weights", default="0.01,0.002,0.0005")
     parser.add_argument("--eval-every", type=int, default=20)
     parser.add_argument("--grad-clip", type=float, default=5.0)
+    parser.add_argument(
+        "--selection-guard",
+        choices=("high-low-high", "residual-only"),
+        default="high-low-high",
+        help=(
+            "Checkpoint admissibility rule.  Use residual-only when changing "
+            "objective weights because the old high-low-high topology need not persist."
+        ),
+    )
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -394,10 +417,7 @@ def main() -> None:
         "seed": args.seed,
         "perturbation_std": args.perturbation_std,
         "random_init": args.random_init,
-        "anti_degeneracy_selection_guard": (
-            "generic high-low-high topology from edge medians and an interior "
-            "low quantile; no switching time/mask and not used as a loss"
-        ),
+        "selection_guard": args.selection_guard,
     }
     (out_dir / "lineage.json").write_text(json.dumps(lineage, indent=2) + "\n", encoding="utf-8")
 
@@ -498,7 +518,13 @@ def main() -> None:
                     "elapsed_total_seconds": time.perf_counter() - total_started,
                 }
                 stage_history.append(eval_row)
-                if metrics["nondegenerate_high_low_high"] and (
+                admissible = (
+                    metrics["nondegenerate_high_low_high"]
+                    if args.selection_guard == "high-low-high"
+                    else math.isfinite(metrics["projected_gradient_linf"])
+                    and math.isfinite(metrics["projected_gradient_rms"])
+                )
+                if admissible and (
                     metrics["projected_gradient_linf"],
                     metrics["projected_gradient_rms"],
                 ) < (
@@ -541,6 +567,10 @@ def main() -> None:
                 },
                 "source_checkpoint": str(checkpoint_path),
                 "teacher_free": True,
+                "direct_or_manual_solution_used": False,
+                "objective_value_used_as_loss_or_selection": False,
+                "switching_time_or_mask_used": False,
+                "full_gradient_includes_state_dependence": True,
                 "stage": stage_index + 1,
                 "selected_epoch": best_epoch,
                 "selection_metrics": selected_metrics,

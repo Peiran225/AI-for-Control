@@ -1,0 +1,296 @@
+diff --git a/examples/icml24-pinn-pi/tumor/tumor_finite_horizon.py b/examples/icml24-pinn-pi/tumor/tumor_finite_horizon.py
+new file mode 100755
+index 0000000..b7a2588
+--- /dev/null
++++ b/examples/icml24-pinn-pi/tumor/tumor_finite_horizon.py
+@@ -0,0 +1,290 @@
++#!/usr/bin/env python3
++"""Finite-horizon tumor adaptation of the LyZNet PINN-PI example path."""
++
++from __future__ import annotations
++
++import argparse
++import csv
++import math
++import sys
++import types
++from pathlib import Path
++from typing import Callable
++
++import numpy as np
++import torch
++import torch.nn as nn
++
++ROOT = Path(__file__).resolve().parents[5]
++sys.path.insert(0, str(ROOT / "external" / "lyznet" / "src"))
++sys.path.insert(0, str(ROOT))
++
++
++class _DrealStub(types.ModuleType):
++    def __getattr__(self, name):
++        if name == "Config":
++            class _Config:
++                def __getattr__(self, item):
++                    def _setter(*args, **kwargs):
++                        return None
++                    return _setter
++
++            return _Config
++        if name in {"logical_and", "logical_or", "logical_not", "logical_imply", "And", "Or", "Not"}:
++            return lambda *args, **kwargs: None
++        if name == "CheckSatisfiability":
++            return lambda *args, **kwargs: None
++        if name in {"Variable", "Expression"}:
++            return lambda *args, **kwargs: 0.0
++        if name in {"sqrt", "tanh", "sin", "cos", "exp", "log"}:
++            return getattr(math, name if name != "tanh" else "tanh")
++        raise AttributeError(name)
++
++
++sys.modules.setdefault("dreal", _DrealStub("dreal"))
++
++from lyznet.neural_learner import Net  # noqa: E402
++from run_transformer_objective_ablation import eval_common_grid, eval_rk4  # noqa: E402
++from tumor_problem import NOMINAL_TUMOR_PROBLEM  # noqa: E402
++
++
++def write_csv(path: Path, rows: list[dict[str, object]], fields: list[str]) -> None:
++    path.parent.mkdir(parents=True, exist_ok=True)
++    with path.open("w", newline="") as f:
++        writer = csv.DictWriter(f, fieldnames=fields)
++        writer.writeheader()
++        writer.writerows(rows)
++
++
++class TumorParams:
++    def __init__(self, device: torch.device, dtype: torch.dtype):
++        self.m = NOMINAL_TUMOR_PROBLEM.m
++        self.T = NOMINAL_TUMOR_PROBLEM.T
++        self.umax = NOMINAL_TUMOR_PROBLEM.umax
++        self.gamma = NOMINAL_TUMOR_PROBLEM.gamma
++        self.state_scale = 20.0
++        self.value_scale = 400.0
++        x = torch.linspace(0.0, 1.0, self.m, device=device, dtype=dtype)
++        self.r = 2.0 / (1.0 + 3.0 * x.pow(4))
++        self.phi = 1.0 / (1.0 + x.pow(2))
++        self.M = torch.full((self.m,), NOMINAL_TUMOR_PROBLEM.m_suppression, device=device, dtype=dtype)
++        self.beta = torch.full((self.m,), NOMINAL_TUMOR_PROBLEM.beta, device=device, dtype=dtype)
++        self.alpha = torch.full((self.m,), NOMINAL_TUMOR_PROBLEM.alpha, device=device, dtype=dtype)
++        self.N0 = torch.full((self.m,), NOMINAL_TUMOR_PROBLEM.n0, device=device, dtype=dtype)
++
++
++def decode_N(z: torch.Tensor, p: TumorParams) -> torch.Tensor:
++    return torch.clamp(z[:, 1:] * p.state_scale, min=1e-8)
++
++
++def dynamics(N: torch.Tensor, u: torch.Tensor, p: TumorParams) -> torch.Tensor:
++    G = torch.log1p(N.mean(dim=1, keepdim=True))
++    return (p.r.unsqueeze(0) - p.phi.unsqueeze(0) * u - p.M.unsqueeze(0) * G) * N
++
++
++def singular_control(N: torch.Tensor, p: TumorParams) -> torch.Tensor:
++    G = torch.log1p(N.mean(dim=1, keepdim=True))
++    num = (p.beta.unsqueeze(0) * (p.r.unsqueeze(0) - p.M.unsqueeze(0) * G) * N).sum(dim=1, keepdim=True)
++    den = (p.beta.unsqueeze(0) * p.phi.unsqueeze(0) * N).sum(dim=1, keepdim=True).clamp_min(1e-8)
++    return torch.clamp(num / den, 0.0, p.umax)
++
++
++def net_value(net: nn.Module, z: torch.Tensor, p: TumorParams) -> torch.Tensor:
++    return p.value_scale * net(z)
++
++
++def value_grad(net: nn.Module, z: torch.Tensor, p: TumorParams) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
++    z = z.clone().detach().requires_grad_(True)
++    V = net_value(net, z, p)
++    grad_z = torch.autograd.grad(V.sum(), z, create_graph=True)[0]
++    V_t = grad_z[:, :1] / p.T
++    V_N = grad_z[:, 1:] / p.state_scale
++    return V, V_t, V_N
++
++
++def policy_from_net(net: nn.Module, z: torch.Tensor, p: TumorParams, temp: float) -> torch.Tensor:
++    with torch.enable_grad():
++        _, _, V_N = value_grad(net, z, p)
++    N = decode_N(z, p)
++    psi = p.gamma - (p.phi.unsqueeze(0) * N * V_N).sum(dim=1, keepdim=True)
++    u_sing = singular_control(N, p)
++    u_bang = p.umax * torch.sigmoid(-psi / max(temp, 1e-6))
++    q = torch.sigmoid((0.1 - torch.abs(psi)) / 0.03)
++    return torch.clamp(q * u_sing + (1.0 - q) * u_bang, 0.0, p.umax).detach()
++
++
++def sample_z(batch: int, p: TumorParams, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
++    t = torch.rand(batch, 1, device=device, dtype=dtype)
++    # Domain centered on the reachable population range in the manuscript runs.
++    N = 0.05 + 24.0 * torch.rand(batch, p.m, device=device, dtype=dtype)
++    return torch.cat([t, N / p.state_scale], dim=1)
++
++
++def policy_eval_loss(
++    net: nn.Module,
++    z: torch.Tensor,
++    p: TumorParams,
++    policy: Callable[[torch.Tensor], torch.Tensor],
++    terminal_batch: int,
++    terminal_weight: float,
++) -> tuple[torch.Tensor, dict[str, float]]:
++    V, V_t, V_N = value_grad(net, z, p)
++    N = decode_N(z, p)
++    u = policy(z)
++    f = dynamics(N, u, p)
++    running = (p.beta.unsqueeze(0) * N).sum(dim=1, keepdim=True) + p.gamma * u
++    residual = V_t + running + (V_N * f).sum(dim=1, keepdim=True)
++
++    zT = sample_z(terminal_batch, p, z.device, z.dtype)
++    zT[:, :1] = 1.0
++    NT = decode_N(zT, p)
++    VT = net_value(net, zT, p)
++    target = (p.alpha.unsqueeze(0) * NT).sum(dim=1, keepdim=True)
++    terminal = VT - target
++    loss = residual.square().mean() + terminal_weight * terminal.square().mean()
++    return loss, {
++        "loss": float(loss.detach().cpu()),
++        "residual": float(residual.square().mean().detach().cpu()),
++        "terminal": float(terminal.square().mean().detach().cpu()),
++        "u_mean": float(u.mean().detach().cpu()),
++    }
++
++
++def train_eval_net(
++    previous_net: nn.Module | None,
++    p: TumorParams,
++    args: argparse.Namespace,
++    device: torch.device,
++    dtype: torch.dtype,
++    outer: int,
++) -> tuple[nn.Module, list[dict[str, object]]]:
++    net = Net(22, args.layers, args.width).to(device=device, dtype=dtype)
++    if previous_net is not None:
++        net.load_state_dict(previous_net.state_dict())
++    opt = torch.optim.Adam(net.parameters(), lr=args.lr)
++    history: list[dict[str, object]] = []
++
++    if previous_net is None:
++        policy = lambda z: torch.full((z.shape[0], 1), args.initial_u, device=z.device, dtype=z.dtype)
++    else:
++        policy = lambda z: policy_from_net(previous_net, z, p, temp=args.policy_temp)
++
++    for step in range(1, args.steps_per_outer + 1):
++        z = sample_z(args.batch, p, device, dtype)
++        loss, metrics = policy_eval_loss(net, z, p, policy, args.terminal_batch, args.terminal_weight)
++        opt.zero_grad()
++        loss.backward()
++        nn.utils.clip_grad_norm_(net.parameters(), 50.0)
++        opt.step()
++        if step == 1 or step % args.log_every == 0 or step == args.steps_per_outer:
++            row = {"outer": outer, "step": step, **metrics}
++            history.append(row)
++            print(
++                f"[PINN-PI outer={outer}] step={step} loss={metrics['loss']:.4g} "
++                f"res={metrics['residual']:.4g} term={metrics['terminal']:.4g} u={metrics['u_mean']:.3f}",
++                flush=True,
++            )
++    return net, history
++
++
++def evaluate_control(net: nn.Module, p: TumorParams, args: argparse.Namespace, device: torch.device, dtype: torch.dtype):
++    t = np.linspace(0.0, p.T, args.n_eval + 1)
++    u = np.empty(args.n_eval + 1, dtype=np.float64)
++    N = np.empty((args.n_eval + 1, p.m), dtype=np.float64)
++    N[0] = 10.0
++    dt = p.T / args.n_eval
++
++    def u_of(tval: float, Nval: np.ndarray) -> float:
++        z = torch.tensor(
++            np.concatenate([[tval / p.T], Nval / p.state_scale])[None, :],
++            device=device,
++            dtype=dtype,
++        )
++        return float(policy_from_net(net, z, p, temp=args.policy_temp).detach().cpu().numpy().reshape(-1)[0])
++
++    def dyn_np(x: np.ndarray, uval: float) -> np.ndarray:
++        x_pos = np.maximum(x, 1e-12)
++        G = np.log1p(x_pos.mean())
++        r = p.r.detach().cpu().numpy()
++        phi = p.phi.detach().cpu().numpy()
++        M = p.M.detach().cpu().numpy()
++        return (r - phi * uval - M * G) * x_pos
++
++    for k in range(args.n_eval):
++        uk = u_of(t[k], N[k])
++        u[k] = uk
++        x = N[k]
++        k1 = dyn_np(x, uk)
++        k2 = dyn_np(np.maximum(x + 0.5 * dt * k1, 1e-12), uk)
++        k3 = dyn_np(np.maximum(x + 0.5 * dt * k2, 1e-12), uk)
++        k4 = dyn_np(np.maximum(x + dt * k3, 1e-12), uk)
++        N[k + 1] = np.maximum(x + dt * (k1 + 2 * k2 + 2 * k3 + k4) / 6.0, 1e-12)
++    u[-1] = u_of(t[-1], N[-1])
++    z0 = torch.tensor(np.concatenate([[0.0], np.full(p.m, 10.0) / p.state_scale])[None, :], device=device, dtype=dtype)
++    native = float(net_value(net, z0, p).detach().cpu().numpy().reshape(-1)[0])
++    return t, N, u, native
++
++
++def main() -> None:
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--out_dir", default=str(ROOT / "paper_runs" / "official_related_work_adaptations"))
++    parser.add_argument("--seed", type=int, default=1)
++    parser.add_argument("--device", default="auto")
++    parser.add_argument("--float64", action="store_true")
++    parser.add_argument("--outer", type=int, default=3)
++    parser.add_argument("--steps_per_outer", type=int, default=700)
++    parser.add_argument("--batch", type=int, default=512)
++    parser.add_argument("--terminal_batch", type=int, default=512)
++    parser.add_argument("--terminal_weight", type=float, default=3.0)
++    parser.add_argument("--layers", type=int, default=3)
++    parser.add_argument("--width", type=int, default=96)
++    parser.add_argument("--lr", type=float, default=5e-4)
++    parser.add_argument("--initial_u", type=float, default=1.5)
++    parser.add_argument("--policy_temp", type=float, default=0.5)
++    parser.add_argument("--n_eval", type=int, default=400)
++    parser.add_argument("--log_every", type=int, default=100)
++    args = parser.parse_args()
++
++    torch.manual_seed(args.seed)
++    np.random.seed(args.seed)
++    device = torch.device(args.device if args.device != "auto" else ("cuda" if torch.cuda.is_available() else "cpu"))
++    dtype = torch.float64 if args.float64 else torch.float32
++    p = TumorParams(device, dtype)
++    net = None
++    all_history: list[dict[str, object]] = []
++    for outer in range(1, args.outer + 1):
++        net, history = train_eval_net(net, p, args, device, dtype, outer)
++        all_history.extend(history)
++
++    t, N, u, native = evaluate_control(net, p, args, device, dtype)
++    ref = eval_rk4(u)
++    common = eval_common_grid(u)
++    out_dir = Path(args.out_dir).resolve()
++    out_dir.mkdir(parents=True, exist_ok=True)
++    prefix = out_dir / "lyznet_pinn_pi_tumor_official"
++    np.savez(prefix.with_suffix(".npz"), t=t, N=N, u=u, native_estimate=native, history=np.array(all_history, dtype=object))
++    if all_history:
++        write_csv(prefix.with_name(prefix.name + "_history.csv"), all_history, list(all_history[0].keys()))
++    rows = [
++        {
++            "method": "Finite-horizon PINN-PI [6] adaptation",
++            "native_estimate": native,
++            "realized_J": ref["J_ref_25600"],
++            "J_gap_to_direct": "",
++            "relative_gap_percent": "",
++            "pmp_kkt_gap": common["common_gap"],
++            "u_min": float(u.min()),
++            "u_max": float(u.max()),
++            "u_mean": float(u.mean()),
++            "final_mean_N": ref["final_mean_N_ref"],
++            "source": str(prefix.with_suffix(".npz").relative_to(ROOT)),
++            "note": "LyZNet architecture with finite-horizon tumor HJB policy evaluation/improvement; M=0.5",
++        }
++    ]
++    write_csv(prefix.with_name(prefix.name + "_summary.csv"), rows, list(rows[0].keys()))
++    print(prefix.with_suffix(".npz"))
++    print(rows[0])
++
++
++if __name__ == "__main__":
++    main()

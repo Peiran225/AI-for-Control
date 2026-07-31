@@ -169,10 +169,11 @@ def solve_direct_scale(
 
     def fun_and_grad(u_np: np.ndarray) -> Tuple[float, np.ndarray]:
         u = torch.tensor(u_np, device=device, dtype=dtype, requires_grad=True)
-        J = rk4_objective_interval_controls(u, N0, cfg, params)
-        J.backward()
+        J_physical = rk4_objective_interval_controls(u, N0, cfg, params)
+        J_optimization = J_physical / args.objective_scale
+        J_optimization.backward()
         grad = u.grad.detach().cpu().numpy().astype(np.float64)
-        return float(J.detach().cpu()), grad
+        return float(J_optimization.detach().cpu()), grad
 
     start_rows: List[Dict[str, object]] = []
     best_u: Optional[np.ndarray] = None
@@ -203,12 +204,14 @@ def solve_direct_scale(
             "message": str(result.message),
             "nit": int(result.nit),
             "nfev": int(result.nfev),
-            "J": float(result.fun),
+            "J": float(result.fun) * args.objective_scale,
+            "J_optimization": float(result.fun),
             "elapsed_sec": elapsed,
         }
         start_rows.append(row)
         print(
-            f"scale={scale:g} start={label} J={result.fun:.8g} "
+            f"scale={scale:g} start={label} "
+            f"J={result.fun * args.objective_scale:.8g} "
             f"nit={result.nit} success={result.success} time={elapsed:.1f}s",
             flush=True,
         )
@@ -375,6 +378,8 @@ def make_plots(out_dir: Path, scales: List[float], direct_us: Dict[float, np.nda
 
 
 def run(args: argparse.Namespace) -> None:
+    if not math.isfinite(args.objective_scale) or args.objective_scale <= 0.0:
+        raise ValueError("objective_scale must be positive and finite")
     set_seed(args.seed)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -444,7 +449,18 @@ def run(args: argparse.Namespace) -> None:
     )
     write_csv(
         out_dir / "direct_start_results.csv",
-        ["scale", "start", "success", "status", "message", "nit", "nfev", "J", "elapsed_sec"],
+        [
+            "scale",
+            "start",
+            "success",
+            "status",
+            "message",
+            "nit",
+            "nfev",
+            "J",
+            "J_optimization",
+            "elapsed_sec",
+        ],
         start_rows_all,
     )
 
@@ -542,6 +558,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--maxfun", type=int, default=2000)
     parser.add_argument("--ftol", type=float, default=1e-10)
     parser.add_argument("--gtol", type=float, default=1e-7)
+    parser.add_argument(
+        "--objective_scale",
+        type=float,
+        default=1.0,
+        help="positive constant dividing J and its gradient inside L-BFGS-B",
+    )
     parser.add_argument("--openloop_ckpt", action="append", default=[])
     parser.add_argument("--initial_control", type=str, default="")
     parser.add_argument("--initial_only", action="store_true")

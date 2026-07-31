@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT))
 from train_paper_pmp_kkt import (  # noqa: E402
     ParamControl,
     ProblemConfig,
+    TimeCNN,
     TimeMLP,
     TimeTransformer,
     build_params,
@@ -38,6 +39,7 @@ from train_paper_pmp_kkt import (  # noqa: E402
     set_seed,
 )
 from tumor_problem import (  # noqa: E402
+    TumorProblem,
     evaluate_zoh_control,
     serializable_metrics,
 )
@@ -71,6 +73,14 @@ def build_model(checkpoint_args: dict[str, Any], cfg: ProblemConfig) -> torch.nn
     if model_name == "mlp":
         return TimeMLP(
             parse_hidden(str(checkpoint_args.get("hidden", "128,128"))),
+            cfg.umax,
+            float(checkpoint_args.get("init_u", 1.5)),
+        )
+    if model_name == "cnn":
+        return TimeCNN(
+            int(checkpoint_args.get("cnn_channels", 96)),
+            int(checkpoint_args.get("cnn_layers", 3)),
+            int(checkpoint_args.get("cnn_kernel_size", 5)),
             cfg.umax,
             float(checkpoint_args.get("init_u", 1.5)),
         )
@@ -204,8 +214,14 @@ def high_accuracy_metrics(
     *,
     plateau_start: float,
     plateau_end: float,
+    problem: TumorProblem | None = None,
 ) -> tuple[dict[str, Any], dict[str, np.ndarray]]:
-    result = evaluate_zoh_control(t, u, diagnostic_points=4001)
+    result = evaluate_zoh_control(
+        t,
+        u,
+        problem=problem if problem is not None else TumorProblem(),
+        diagnostic_points=4001,
+    )
     diagnostic_t = np.asarray(result["diagnostic_t"])
     diagnostic_N = np.asarray(result["diagnostic_N"])
     diagnostic_u = np.asarray(result["diagnostic_u"])

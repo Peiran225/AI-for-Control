@@ -1,0 +1,10 @@
+{
+  "benchmark": "Han-Jentzen-E 100D HJB-LQ, paper equations (13)-(14)",
+  "mode": "full_numerical_reproduction",
+  "official_solver_config": "external/DeepBSDE/configs/hjb_lq_d100.json",
+  "seeds": [0, 1, 2, 3, 4],
+  "reference_quadrature_order": 128,
+  "selection_rule": "retain all predeclared seeds; do not select by terminal loss or estimate error",
+  "paper_reported_relative_error": 0.0017,
+  "paper_url": "https://arxiv.org/abs/1707.02568"
+}

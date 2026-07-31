@@ -1,0 +1,21 @@
+{
+  "seed": 0,
+  "eqn_config": {
+    "eqn_name": "HJBLQ",
+    "total_time": 1.0,
+    "dim": 8,
+    "num_time_interval": 4
+  },
+  "net_config": {
+    "y_init_range": [0.0, 1.0],
+    "num_hiddens": [12, 12],
+    "lr_values": [0.01, 0.001],
+    "lr_boundaries": [1],
+    "num_iterations": 2,
+    "batch_size": 8,
+    "valid_size": 16,
+    "logging_frequency": 1,
+    "dtype": "float64",
+    "verbose": false
+  }
+}

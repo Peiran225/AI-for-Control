@@ -35,11 +35,6 @@ from generate_offgrid_policy_switching_diagnostics import (  # noqa: E402
     load_time_model,
     raw_time_logits,
 )
-from generate_three_case_hamiltonian_results import (  # noqa: E402
-    resistant_heavy_initial_state,
-)
-
-
 QUANTITIES = ("H_u", "dH_u_dt", "d2H_u_dt2")
 
 
@@ -78,6 +73,8 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("--dense-points must be at least 3")
     if args.refinement_multiplier < 1:
         raise ValueError("--refinement-multiplier must be positive")
+    if not 0.0 <= args.resistant_radius < 1.0:
+        raise ValueError("--resistant-radius must lie in [0,1)")
     torch.set_num_threads(args.torch_threads)
     if hasattr(torch.backends, "mha"):
         torch.backends.mha.set_fastpath_enabled(False)
@@ -153,9 +150,13 @@ def run(args: argparse.Namespace) -> None:
         time_wrapper=wrapper,
     )
     nominal = np.full(cfg.m, cfg.n0, dtype=np.float64)
+    resistant_direction = np.linspace(-1.0, 1.0, cfg.m, dtype=np.float64)
+    resistant = cfg.n0 * (
+        1.0 + args.resistant_radius * resistant_direction
+    )
     states = {
         "nominal": nominal,
-        "resistant_heavy": resistant_heavy_initial_state(cfg),
+        "resistant_heavy": resistant,
     }
     interior = (
         (dense_time >= args.interior_start) & (dense_time < args.interior_end)
@@ -182,6 +183,16 @@ def run(args: argparse.Namespace) -> None:
         "report_scale_factor": args.report_scale_factor,
         "query_device": str(device),
         "time_context_tokens": cfg.n + 1,
+        "structured_resistant_state": {
+            "radius": args.resistant_radius,
+            "direction": resistant_direction.tolist(),
+            "definition": (
+                "N_i(0)=n0*(1+r*z_i), with z_i linearly spaced "
+                "from -1 to 1"
+            ),
+            "initial_state": resistant.tolist(),
+            "initial_total": float(resistant.sum()),
+        },
         "fixed_support_on_grid_reconstruction_max_abs": reconstruction_error,
         "states": {},
     }
@@ -252,6 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--query-batch-size", type=int, default=16)
     parser.add_argument("--interior-start", type=float, default=1.5)
     parser.add_argument("--interior-end", type=float, default=8.0)
+    parser.add_argument("--resistant-radius", type=float, default=0.10)
     parser.add_argument("--rtol", type=float, default=1.0e-10)
     parser.add_argument("--atol", type=float, default=1.0e-12)
     parser.add_argument("--report-scale-factor", type=float, default=400.0)

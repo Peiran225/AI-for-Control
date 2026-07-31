@@ -1,0 +1,334 @@
+diff --git a/NeuralPMP/Env/Env.py b/NeuralPMP/Env/Env.py
+index d2fec7b..7e9e7f3 100644
+--- a/NeuralPMP/Env/Env.py
++++ b/NeuralPMP/Env/Env.py
+@@ -1,11 +1,12 @@
+-import numpy as np
+-import time
+-import math
+-import torch
+-import torch.optim as optim
+-import torch.nn.functional as func
+-from NeuralDynamics import Networks
+-from Solver import Solver
++import numpy as np
++import time
++import math
++import os
++import torch
++import torch.optim as optim
++import torch.nn.functional as func
++from NeuralDynamics import Networks
++from Solver import Solver
+ 
+ # Environment 1: LQR
+ class LQR():
+@@ -162,18 +163,176 @@ class LQR():
+                                     TrueDynamics=self.TrueDynamics, NeuralDynamics=self.NeuralDyn, Terminal=self.Terminal,
+                                     HamiltonianNN=self.HamiltonianNeural, Objective=self.Obj
+                                     )
+-        elif solver == 'NeuralPMPOffline_TimeRelated':
+-            x0 = torch.tensor(self.x0, dtype=torch.float32)
+-            Solver.NeuralPMPOffline_TimeRelatedCost(horizon=self.T, state_dim=self.state_dim, action_dim=self.action_dim, initial=x0,
+-                                    lr=PMPlr, iters=PMP_iters, action_lower=self.action_lower, action_upper= self.action_upper,
+-                                    TrueDynamics=self.TrueDynamics, NeuralDynamics=self.NeuralDyn,
+-                                    Terminal=self.Terminal,
+-                                    HamiltonianNN=self.HamiltonianNeural, Objective=self.Obj
+-                                    )
+-
+-
+-# Environment 2: Battery
+-class Battery():
++        elif solver == 'NeuralPMPOffline_TimeRelated':
++            x0 = torch.tensor(self.x0, dtype=torch.float32)
++            Solver.NeuralPMPOffline_TimeRelatedCost(horizon=self.T, state_dim=self.state_dim, action_dim=self.action_dim, initial=x0,
++                                    lr=PMPlr, iters=PMP_iters, action_lower=self.action_lower, action_upper= self.action_upper,
++                                    TrueDynamics=self.TrueDynamics, NeuralDynamics=self.NeuralDyn,
++                                    Terminal=self.Terminal,
++                                    HamiltonianNN=self.HamiltonianNeural, Objective=self.Obj
++                                    )
++
++
++# Environment 2: Tumor control
++class Tumor():
++    def __init__(self):
++        # Dimensions
++        self.state_dim = 21
++        self.action_dim = 1
++
++        # Time grid for the discrete Neural-PMP controller.
++        self.final_time = float(os.environ.get("NEURAL_PMP_TUMOR_T", "10.0"))
++        self.T = int(os.environ.get("NEURAL_PMP_TUMOR_N", "200"))
++        self.dt = self.final_time / self.T
++
++        # Manuscript parameters.
++        self.action_lower = 0.0
++        self.action_upper = 3.0
++        self.beta_scalar = 0.1
++        self.alpha_scalar = 1.0
++        self.gamma = 20.0
++        self.M_scalar = 0.5
++
++        grid = np.linspace(0.0, 1.0, self.state_dim, dtype=np.float32)
++        self.r = (2.0 / (1.0 + 3.0 * grid**4)).astype(np.float32)
++        self.phi = (1.0 / (1.0 + grid**2)).astype(np.float32)
++        self.M = np.full(self.state_dim, self.M_scalar, dtype=np.float32)
++        self.beta = np.full(self.state_dim, self.beta_scalar, dtype=np.float32)
++        self.alpha = np.full(self.state_dim, self.alpha_scalar, dtype=np.float32)
++        self.x0 = np.full(self.state_dim, float(os.environ.get("NEURAL_PMP_TUMOR_N0", "10.0")), dtype=np.float32)
++
++        # Dataset (features, labels) for learned one-step dynamics.
++        self.DF = []
++        self.DL = []
++
++        self.NeuralDyn = Networks.NNTypeB(input=self.state_dim + self.action_dim, output=self.state_dim, hidden=128)
++
++    def _rhs_np(self, x, u):
++        x = np.maximum(np.asarray(x, dtype=np.float32).reshape(-1), 1e-8)
++        u_scalar = float(np.clip(np.asarray(u, dtype=np.float32).reshape(-1)[0], self.action_lower, self.action_upper))
++        G = np.log1p(np.sum(x) / self.state_dim).astype(np.float32)
++        return (self.r - self.phi * u_scalar - self.M * G) * x
++
++    # True one-step dynamics used by the Neural-PMP environment.
++    def TrueDynamics(self, x, u):
++        x = np.asarray(x, dtype=np.float32).reshape(-1)
++        x_next = x + self.dt * self._rhs_np(x, u)
++        return np.maximum(x_next, 1e-8).astype(np.float32)
++
++    def RunCost(self, x, u):
++        x_safe = torch.clamp(x.reshape(-1), min=1e-8)
++        u_scalar = torch.clamp(u.reshape(-1)[0], min=self.action_lower, max=self.action_upper)
++        beta = torch.tensor(self.beta, dtype=torch.float32, device=x_safe.device)
++        return self.dt * (torch.dot(beta, x_safe) + self.gamma * u_scalar)
++
++    def Terminal(self, x):
++        x_safe = torch.clamp(x.reshape(-1), min=1e-8)
++        alpha = torch.tensor(self.alpha, dtype=torch.float32, device=x_safe.device)
++        return torch.dot(alpha, x_safe)
++
++    def Obj(self, xx, uu):
++        path_cost = 0
++        for t in range(self.T):
++            path_cost = path_cost + self.RunCost(xx[t], uu[t])
++        return path_cost + self.Terminal(xx[self.T])
++
++    def TrainNeuralDynamics(self, sample_num, train_iters):
++        low = float(os.environ.get("NEURAL_PMP_TUMOR_SAMPLE_LOW", "0.1"))
++        high = float(os.environ.get("NEURAL_PMP_TUMOR_SAMPLE_HIGH", "20.0"))
++        for _ in range(sample_num):
++            x_cur = low + (high - low) * np.random.rand(self.state_dim).astype(np.float32)
++            u_cur = self.action_lower + (self.action_upper - self.action_lower) * np.random.rand(self.action_dim).astype(np.float32)
++            self.DF.append(np.concatenate((x_cur, u_cur), axis=0))
++            self.DL.append(self.TrueDynamics(x_cur, u_cur))
++
++        X_train = np.array(self.DF, dtype=np.float32)
++        y_train = np.array(self.DL, dtype=np.float32)
++        X_train_T = torch.from_numpy(X_train)
++        y_train_T = torch.from_numpy(y_train)
++
++        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
++        model = self.NeuralDyn.to(device)
++        optimizer = optim.Adam(model.parameters(), lr=5e-3, weight_decay=1e-4)
++
++        print('NN Dynamics Pre-train.......')
++        train_start = time.time()
++
++        for ep in range(train_iters):
++            model.train()
++            data, target = X_train_T.to(device), y_train_T.to(device)
++            optimizer.zero_grad()
++            output = model(data)
++            loss = func.mse_loss(output, target)
++            loss.backward()
++            optimizer.step()
++            if (ep + 1) % 1000 == 0:
++                print('Epoch:', ep + 1, 'Loss = ', loss.item())
++        print('Pre-training Time---------------------', time.time() - train_start, 's')
++        self.NeuralDyn = model
++
++    def HamiltonianNeural(self, u, x, lam):
++        input = torch.concat((x.reshape(-1), u.reshape(-1)), dim=0)
++        return self.RunCost(x, u) + torch.dot(lam.reshape(-1), self.NeuralDyn(input))
++
++    def _rollout_true_torch(self, u_np):
++        xx = torch.zeros((self.T + 1, self.state_dim), dtype=torch.float32)
++        uu = torch.tensor(np.clip(u_np, self.action_lower, self.action_upper), dtype=torch.float32).reshape(self.T, self.action_dim)
++        xx[0] = torch.tensor(self.x0, dtype=torch.float32)
++        for i in range(self.T):
++            xx[i + 1] = torch.tensor(self.TrueDynamics(xx[i].detach().numpy(), uu[i].detach().numpy()), dtype=torch.float32)
++        return xx, uu
++
++    def _initial_control(self):
++        kind = os.environ.get("NEURAL_PMP_TUMOR_INIT", "zero")
++        if kind == "zero":
++            return None
++        if kind == "mid":
++            return np.full((self.T, self.action_dim), 0.5 * self.action_upper, dtype=np.float32)
++        if kind == "max":
++            return np.full((self.T, self.action_dim), self.action_upper, dtype=np.float32)
++        if kind == "front":
++            return np.linspace(self.action_upper, self.action_lower, self.T, dtype=np.float32).reshape(self.T, self.action_dim)
++        if kind == "back":
++            return np.linspace(self.action_lower, self.action_upper, self.T, dtype=np.float32).reshape(self.T, self.action_dim)
++        if kind == "random":
++            rng = np.random.default_rng(int(os.environ.get("NEURAL_PMP_TUMOR_SEED", "0")))
++            raw = rng.uniform(self.action_lower, self.action_upper, size=(self.T, self.action_dim)).astype(np.float32)
++            if self.T >= 9:
++                kernel = np.ones(9, dtype=np.float32) / 9.0
++                raw[:, 0] = np.convolve(np.pad(raw[:, 0], (4, 4), mode="edge"), kernel, mode="valid")
++            return raw
++        raise ValueError(f"Unknown NEURAL_PMP_TUMOR_INIT={kind}")
++
++    def Solve(self, sample_num, train_iters, solver='NeuralPMPOffline', PMPlr=1e-3, PMP_iters=3000):
++        self.TrainNeuralDynamics(sample_num=sample_num, train_iters=train_iters)
++
++        if solver != 'NeuralPMPOffline':
++            print('Tumor environment uses NeuralPMPOffline; switching solver.')
++
++        x0 = torch.tensor(self.x0, dtype=torch.float32)
++        u_np, _ = Solver.NeuralPMPOffline(horizon=self.T, state_dim=self.state_dim, action_dim=self.action_dim, initial=x0,
++                                          lr=PMPlr, iters=PMP_iters, action_lower=self.action_lower,
++                                          action_upper=self.action_upper, TrueDynamics=self.TrueDynamics,
++                                          NeuralDynamics=self.NeuralDyn, Terminal=self.Terminal,
++                                          HamiltonianNN=self.HamiltonianNeural, Objective=self.Obj,
++                                          initial_control=self._initial_control())
++
++        xx_true, uu_true = self._rollout_true_torch(u_np)
++        true_obj = self.Obj(xx_true, uu_true).item()
++        print('Tumor true-dynamics objective:', true_obj)
++
++        save_path = os.environ.get("NEURAL_PMP_TUMOR_SAVE")
++        if save_path:
++            save_dir = os.path.dirname(save_path)
++            if save_dir:
++                os.makedirs(save_dir, exist_ok=True)
++            np.savez(save_path, u=uu_true.detach().numpy(), x=xx_true.detach().numpy(), J=true_obj,
++                     dt=self.dt, T=self.final_time)
++            print('Saved tumor Neural-PMP result:', save_path)
++
++
++# Environment 2: Battery
++class Battery():
+     def __init__(self):
+         # Parameters Settings for True Battery System
+ 
+diff --git a/NeuralPMP/Solver/Solver.py b/NeuralPMP/Solver/Solver.py
+index 4c7b623..9afa152 100644
+--- a/NeuralPMP/Solver/Solver.py
++++ b/NeuralPMP/Solver/Solver.py
+@@ -4,8 +4,8 @@ import torch
+ import torch.nn as nn
+ import torch.optim as optim
+ 
+-def NeuralPMPOffline(horizon, state_dim, action_dim, initial, lr, iters, action_upper, action_lower,
+-                     TrueDynamics, NeuralDynamics, Terminal, HamiltonianNN, Objective):
++def NeuralPMPOffline(horizon, state_dim, action_dim, initial, lr, iters, action_upper, action_lower,
++                     TrueDynamics, NeuralDynamics, Terminal, HamiltonianNN, Objective, initial_control=None):
+ 
+     print('--------------------------Solver: NerualPMP(Offline)---------------------------')
+     m = horizon
+@@ -13,7 +13,11 @@ def NeuralPMPOffline(horizon, state_dim, action_dim, initial, lr, iters, action_
+ 
+     # Control Variable
+     # U = [u(0), u(1), ..., u(T-1)]
+-    u = torch.zeros((m, action_dim), dtype=torch.float32)
++    if initial_control is None:
++        u = torch.zeros((m, action_dim), dtype=torch.float32)
++    else:
++        u = torch.tensor(initial_control, dtype=torch.float32).reshape(m, action_dim)
++        u = torch.clamp(u, min=action_lower, max=action_upper)
+     u.requires_grad = True
+ 
+     # State Variable
+@@ -100,7 +104,7 @@ def NeuralPMPOffline(horizon, state_dim, action_dim, initial, lr, iters, action_
+         H = torch.where(H > action_upper, action_upper - 0.000001, H)
+         H = torch.where(H < action_lower, action_lower - 0.000001, H)
+ 
+-        u = u - lr * H
++        u = torch.clamp(u - lr * H, min=action_lower, max=action_upper)
+         if (it + 1) % 100 == 0:
+             t_new = time.time()
+             print('------------------------Iters:', it + 1, '---------------------------')
+@@ -116,11 +120,12 @@ def NeuralPMPOffline(horizon, state_dim, action_dim, initial, lr, iters, action_
+             print('Compute Time:', t_new - t_start, 's')
+             t_start = t_new
+ 
+-    print('Optimal Control:', u.detach().numpy())
+-    print('Optimal Trajectory:', xx.detach().numpy())
++    print('Optimal Control:', u.detach().numpy())
++    print('Optimal Trajectory:', xx.detach().numpy())
++    return u.detach().numpy(), xx.detach().numpy()
+ 
+-def NeuralPMPOffline_TimeRelatedCost(horizon, state_dim, action_dim, initial, lr, iters, action_upper, action_lower,
+-                     TrueDynamics, NeuralDynamics, Terminal, HamiltonianNN, Objective):
++def NeuralPMPOffline_TimeRelatedCost(horizon, state_dim, action_dim, initial, lr, iters, action_upper, action_lower,
++                     TrueDynamics, NeuralDynamics, Terminal, HamiltonianNN, Objective, initial_control=None):
+ 
+     print('--------------------------Solver: NerualPMP(Offline, with time-related run cost)---------------------------')
+     m = horizon
+@@ -128,7 +133,11 @@ def NeuralPMPOffline_TimeRelatedCost(horizon, state_dim, action_dim, initial, lr
+ 
+     # Control Variable
+     # U = [u(0), u(1), ..., u(T-1)]
+-    u = torch.zeros((m, action_dim), dtype=torch.float32)
++    if initial_control is None:
++        u = torch.zeros((m, action_dim), dtype=torch.float32)
++    else:
++        u = torch.tensor(initial_control, dtype=torch.float32).reshape(m, action_dim)
++        u = torch.clamp(u, min=action_lower, max=action_upper)
+     u.requires_grad = True
+ 
+     # State Variable
+@@ -215,7 +224,7 @@ def NeuralPMPOffline_TimeRelatedCost(horizon, state_dim, action_dim, initial, lr
+         H = torch.where(H > action_upper, action_upper - 0.000001, H)
+         H = torch.where(H < action_lower, action_lower + 0.000001, H)
+ 
+-        u = u - lr * H
++        u = torch.clamp(u - lr * H, min=action_lower, max=action_upper)
+         if (it + 1) % 100 == 0:
+             t_new = time.time()
+             print('------------------------Iters:', it + 1, '---------------------------')
+@@ -231,5 +240,6 @@ def NeuralPMPOffline_TimeRelatedCost(horizon, state_dim, action_dim, initial, lr
+             print('Compute Time:', t_new - t_start, 's')
+             t_start = t_new
+ 
+-    print('Optimal Control:', u.detach().numpy())
+-    print('Optimal Trajectory:', xx.detach().numpy())
+\ No newline at end of file
++    print('Optimal Control:', u.detach().numpy())
++    print('Optimal Trajectory:', xx.detach().numpy())
++    return u.detach().numpy(), xx.detach().numpy()
+diff --git a/NeuralPMP/main.py b/NeuralPMP/main.py
+index 7d7470f..53fd2fe 100644
+--- a/NeuralPMP/main.py
++++ b/NeuralPMP/main.py
+@@ -21,13 +21,15 @@ args = parser.parse_args()
+ if __name__ == '__main__':
+     Env_name = args.Env_Name
+ 
+-    if Env_name == 'LQR':
+-        Env_Selected = Env.LQR()
+-    elif Env_name == 'Battery':
+-        Env_Selected = Env.Battery()
+-
+-    else:
+-        Env_Selected = Env.LQR()
++    if Env_name == 'LQR':
++        Env_Selected = Env.LQR()
++    elif Env_name == 'Battery':
++        Env_Selected = Env.Battery()
++    elif Env_name == 'Tumor':
++        Env_Selected = Env.Tumor()
++
++    else:
++        Env_Selected = Env.LQR()
+         print('Env not Supported! Will automatically select LQR for optimizing.')
+ 
+     Solver = args.Solver
+@@ -37,4 +39,4 @@ if __name__ == '__main__':
+     PMPiters = args.PMP_iters
+ 
+ 
+-    Env_Selected.Solve(sample_num=sample_num, train_iters=train_iters, solver=Solver, PMPlr=PMPlr, PMP_iters=PMPiters)
+\ No newline at end of file
++    Env_Selected.Solve(sample_num=sample_num, train_iters=train_iters, solver=Solver, PMPlr=PMPlr, PMP_iters=PMPiters)

@@ -1,0 +1,104 @@
+diff --git a/equation.py b/equation.py
+index 6984453..08302b2 100644
+--- a/equation.py
++++ b/equation.py
+@@ -237,3 +237,65 @@ class ReactionDiffusion(Equation):
+ 
+     def g_tf(self, t, x):
+         return 1 + self._kappa + tf.sin(self.lambd * tf.reduce_sum(x, 1, keepdims=True))
++
++
++class TumorHJB(Equation):
++    """Vanishing-viscosity HJB adaptation for the 21-population tumor OCP.
++
++    This follows the DeepBSDE repository extension point: define a new PDE by
++    implementing the forward sampler, generator f, and terminal condition g.
++    The deterministic first-order HJB is embedded with a small scalar diffusion
++    so the BSDE machinery has a non-degenerate Z = sigma * grad V term.
++    """
++
++    def __init__(self, eqn_config):
++        super(TumorHJB, self).__init__(eqn_config)
++        self.x_init = np.ones(self.dim) * getattr(eqn_config, "n0", 10.0)
++        self.sigma = float(getattr(eqn_config, "sigma", 0.05))
++        self.umax = float(getattr(eqn_config, "umax", 3.0))
++        self.gamma = float(getattr(eqn_config, "gamma", 20.0))
++        beta = float(getattr(eqn_config, "beta", 0.1))
++        alpha = float(getattr(eqn_config, "alpha", 1.0))
++        m_suppression = float(getattr(eqn_config, "m_suppression", 0.5))
++        x_grid = np.linspace(0.0, 1.0, self.dim)
++        self.r_np = 2.0 / (1.0 + 3.0 * x_grid ** 4)
++        self.phi_np = 1.0 / (1.0 + x_grid ** 2)
++        self.M_np = np.ones(self.dim) * m_suppression
++        self.beta_np = np.ones(self.dim) * beta
++        self.alpha_np = np.ones(self.dim) * alpha
++        self.r = tf.constant(self.r_np, dtype=tf.float64)
++        self.phi = tf.constant(self.phi_np, dtype=tf.float64)
++        self.M = tf.constant(self.M_np, dtype=tf.float64)
++        self.beta_vec = tf.constant(self.beta_np, dtype=tf.float64)
++        self.alpha_vec = tf.constant(self.alpha_np, dtype=tf.float64)
++
++    def _drift_np(self, x):
++        x_pos = np.maximum(x, 1e-8)
++        G = np.log1p(np.mean(x_pos, axis=1, keepdims=True))
++        return (self.r_np.reshape(1, -1) - self.M_np.reshape(1, -1) * G) * x_pos
++
++    def sample(self, num_sample):
++        dw_sample = np.random.normal(size=[num_sample, self.dim, self.num_time_interval]) * self.sqrt_delta_t
++        x_sample = np.zeros([num_sample, self.dim, self.num_time_interval + 1])
++        x_sample[:, :, 0] = np.ones([num_sample, self.dim]) * self.x_init
++        for i in range(self.num_time_interval):
++            x_prev = np.maximum(x_sample[:, :, i], 1e-8)
++            x_sample[:, :, i + 1] = np.maximum(
++                x_prev + self._drift_np(x_prev) * self.delta_t + self.sigma * dw_sample[:, :, i],
++                1e-8,
++            )
++        return dw_sample, x_sample
++
++    def f_tf(self, t, x, y, z):
++        del t, y
++        x_pos = tf.maximum(x, tf.constant(1e-8, dtype=tf.float64))
++        grad_v = z / tf.constant(self.sigma, dtype=tf.float64)
++        running_state = tf.reduce_sum(self.beta_vec * x_pos, axis=1, keepdims=True)
++        psi = self.gamma - tf.reduce_sum(self.phi * x_pos * grad_v, axis=1, keepdims=True)
++        control_part = self.umax * tf.minimum(psi, tf.zeros_like(psi))
++        return running_state + control_part
++
++    def g_tf(self, t, x):
++        del t
++        x_pos = tf.maximum(x, tf.constant(1e-8, dtype=tf.float64))
++        return tf.reduce_sum(self.alpha_vec * x_pos, axis=1, keepdims=True)
+diff --git a/configs/tumor_hjb_d21.json b/configs/tumor_hjb_d21.json
+new file mode 100755
+index 0000000..deb5d10
+--- /dev/null
++++ b/configs/tumor_hjb_d21.json
+@@ -0,0 +1,28 @@
++{
++  "eqn_config": {
++    "_comment": "Vanishing-viscosity HJB adaptation of the tumor optimal-control problem",
++    "eqn_name": "TumorHJB",
++    "total_time": 10.0,
++    "dim": 21,
++    "num_time_interval": 80,
++    "sigma": 0.05,
++    "umax": 3.0,
++    "beta": 0.1,
++    "alpha": 1.0,
++    "gamma": 20.0,
++    "n0": 10.0,
++    "m_suppression": 0.5
++  },
++  "net_config": {
++    "y_init_range": [250, 600],
++    "num_hiddens": [96, 96],
++    "lr_values": [5e-3, 1e-3, 5e-4],
++    "lr_boundaries": [300, 700],
++    "num_iterations": 900,
++    "batch_size": 64,
++    "valid_size": 256,
++    "logging_frequency": 50,
++    "dtype": "float64",
++    "verbose": true
++  }
++}

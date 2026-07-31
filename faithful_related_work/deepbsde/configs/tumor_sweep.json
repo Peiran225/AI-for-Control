@@ -1,0 +1,36 @@
+{
+  "sweep": {
+    "sigmas": [0.1, 0.05, 0.025],
+    "seeds": [0, 1, 2]
+  },
+  "eqn_config": {
+    "eqn_name": "LogStateTumorHJB",
+    "total_time": 10.0,
+    "dim": 21,
+    "num_time_interval": 80,
+    "sigma": 0.05,
+    "seed": 0,
+    "umax": 3.0,
+    "beta": 0.1,
+    "alpha": 1.0,
+    "gamma": 20.0,
+    "n0": 10.0,
+    "m_suppression": 0.5
+  },
+  "net_config": {
+    "y_init_range": [250.0, 800.0],
+    "num_hiddens": [110, 110],
+    "lr_values": [0.005, 0.001, 0.0005],
+    "lr_boundaries": [1000, 1600],
+    "num_iterations": 2000,
+    "batch_size": 64,
+    "valid_size": 256,
+    "logging_frequency": 50,
+    "dtype": "float64",
+    "verbose": true
+  },
+  "artifact_config": {
+    "rk4_substeps": 8,
+    "control_semantics": "ZOH interval control from exact HJB Hamiltonian argmin"
+  }
+}

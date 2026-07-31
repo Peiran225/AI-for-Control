@@ -14,7 +14,7 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import Dict, Iterable
+from typing import Dict, Iterable, Mapping
 
 import numpy as np
 import torch
@@ -40,6 +40,15 @@ from feedback_section5_rk4_reference import (  # noqa: E402
     simulate_open_loop_rk4 as simulate_open_loop_rk4_reference,
     singular_quantities_at_points,
 )
+
+
+FIXED_ANCHOR_NAMES = (
+    "nominal",
+    "structured_r0p10",
+    "structured_r0p20",
+)
+FIXED_ANCHOR_RADII = (0.0, 0.10, 0.20)
+FIXED_ANCHOR_RANDOM_RADIUS = 0.20
 
 
 class NestedFeedbackTransformer(nn.Module):
@@ -373,6 +382,223 @@ def sample_componentwise_initial_states(
             dtype=dtype,
         )
         states[1] = cfg.n0 * (1.0 + float(radius) * resistant_direction)
+    return states
+
+
+def fixed_anchor_initial_states(
+    cfg: ProblemConfig,
+    device: torch.device,
+    dtype: torch.dtype,
+) -> torch.Tensor:
+    """Return nominal, structured-r=.10, and structured-r=.20 states."""
+
+    direction = torch.linspace(
+        -1.0,
+        1.0,
+        cfg.m,
+        device=device,
+        dtype=dtype,
+    )
+    return torch.stack(
+        [
+            torch.full(
+                (cfg.m,),
+                cfg.n0,
+                device=device,
+                dtype=dtype,
+            ),
+            cfg.n0 * (1.0 + FIXED_ANCHOR_RADII[1] * direction),
+            cfg.n0 * (1.0 + FIXED_ANCHOR_RADII[2] * direction),
+        ]
+    )
+
+
+def sample_fixed_anchor_random_initial_states(
+    random_count: int,
+    cfg: ProblemConfig,
+    device: torch.device,
+    dtype: torch.dtype,
+    *,
+    generator: torch.Generator | None = None,
+) -> torch.Tensor:
+    """Prefix the three fixed anchors to r=.20 componentwise-random states.
+
+    ``random_count`` counts only stochastic rows.  Thus an opt-in training
+    batch has ``random_count + 3`` rows, while the legacy samplers retain their
+    existing size and behavior.
+    """
+
+    if random_count <= 0:
+        raise ValueError("the fixed-anchor protocol requires random states")
+    anchors = fixed_anchor_initial_states(cfg, device, dtype)
+    random = sample_componentwise_initial_states(
+        random_count,
+        cfg,
+        FIXED_ANCHOR_RANDOM_RADIUS,
+        device,
+        dtype,
+        generator=generator,
+    )
+    return torch.cat((anchors, random), dim=0)
+
+
+def anchor_loss_limits(
+    baseline_losses: Mapping[str, float],
+    *,
+    max_relative_increase: float,
+    max_absolute_increase: float,
+) -> dict[str, float]:
+    """Build independent non-J validation-loss limits for every anchor."""
+
+    if set(baseline_losses) != set(FIXED_ANCHOR_NAMES):
+        raise ValueError(
+            "anchor losses must contain exactly "
+            f"{', '.join(FIXED_ANCHOR_NAMES)}"
+        )
+    if (
+        not math.isfinite(max_relative_increase)
+        or max_relative_increase < 0.0
+        or not math.isfinite(max_absolute_increase)
+        or max_absolute_increase < 0.0
+    ):
+        raise ValueError("anchor loss tolerances must be finite and nonnegative")
+    limits: dict[str, float] = {}
+    for name in FIXED_ANCHOR_NAMES:
+        baseline = float(baseline_losses[name])
+        if not math.isfinite(baseline) or baseline < 0.0:
+            raise ValueError("anchor baseline losses must be finite and nonnegative")
+        limits[name] = (
+            baseline * (1.0 + max_relative_increase)
+            + max_absolute_increase
+        )
+    return limits
+
+
+def anchor_gate_passes(
+    anchor_losses: Mapping[str, float],
+    anchor_limits: Mapping[str, float],
+) -> bool:
+    """Return whether every named anchor independently satisfies its limit."""
+
+    if (
+        set(anchor_losses) != set(FIXED_ANCHOR_NAMES)
+        or set(anchor_limits) != set(FIXED_ANCHOR_NAMES)
+    ):
+        raise ValueError("anchor gate inputs do not match the fixed anchor set")
+    return all(
+        math.isfinite(float(anchor_losses[name]))
+        and float(anchor_losses[name]) <= float(anchor_limits[name])
+        for name in FIXED_ANCHOR_NAMES
+    )
+
+
+def anchor_gated_candidate_is_better(
+    *,
+    random_validation_loss: float,
+    anchor_losses: Mapping[str, float],
+    anchor_limits: Mapping[str, float],
+    best_random_validation_loss: float,
+) -> bool:
+    """Lexicographic rule: pass all anchor gates, then improve random loss."""
+
+    return (
+        math.isfinite(random_validation_loss)
+        and anchor_gate_passes(anchor_losses, anchor_limits)
+        and random_validation_loss < best_random_validation_loss
+    )
+
+
+def sample_mixed_random_composition_initial_states(
+    count: int,
+    cfg: ProblemConfig,
+    radius: float,
+    device: torch.device,
+    dtype: torch.dtype,
+    *,
+    generator: torch.Generator | None = None,
+    composition_fraction: float = 0.5,
+    include_resistant_heavy: bool = False,
+) -> torch.Tensor:
+    """Sample nominal, componentwise-random, and fixed-total composition states.
+
+    The nominal state is always first.  When requested, the existing
+    resistant-heavy anchor remains second.  The remaining rows are split
+    between iid componentwise perturbations and zero-sum composition
+    directions according to ``composition_fraction``.
+    """
+
+    if count < 0:
+        raise ValueError("count must be nonnegative")
+    if not 0.0 < composition_fraction < 1.0:
+        raise ValueError(
+            "mixed composition fraction must lie strictly between 0 and 1"
+        )
+
+    anchor_count = min(count, 1 + int(include_resistant_heavy and count >= 2))
+    remaining = count - anchor_count
+    if count and remaining < 2:
+        raise ValueError(
+            "mixed sampling requires room for both a componentwise-random "
+            "and a composition state after the anchors"
+        )
+
+    states = torch.empty(count, cfg.m, device=device, dtype=dtype)
+    if not count:
+        return states
+
+    states[0] = cfg.n0
+    if include_resistant_heavy and count >= 2:
+        resistant_direction = torch.linspace(
+            -1.0,
+            1.0,
+            cfg.m,
+            device=device,
+            dtype=dtype,
+        )
+        states[1] = cfg.n0 * (1.0 + float(radius) * resistant_direction)
+
+    composition_count = int(math.floor(remaining * composition_fraction + 0.5))
+    composition_count = min(max(composition_count, 1), remaining - 1)
+    random_count = remaining - composition_count
+    cursor = anchor_count
+
+    random_direction = 2.0 * torch.rand(
+        random_count,
+        cfg.m,
+        device=device,
+        dtype=dtype,
+        generator=generator,
+    ) - 1.0
+    states[cursor : cursor + random_count] = cfg.n0 * (
+        1.0 + float(radius) * random_direction
+    )
+    cursor += random_count
+
+    composition_direction = 2.0 * torch.rand(
+        composition_count,
+        cfg.m,
+        device=device,
+        dtype=dtype,
+        generator=generator,
+    ) - 1.0
+    composition_direction = (
+        composition_direction
+        - composition_direction.mean(dim=-1, keepdim=True)
+    )
+    composition_direction = composition_direction / composition_direction.abs().amax(
+        dim=-1, keepdim=True
+    ).clamp_min(torch.finfo(dtype).eps)
+    amplitude = torch.rand(
+        composition_count,
+        1,
+        device=device,
+        dtype=dtype,
+        generator=generator,
+    )
+    composition_direction = amplitude * composition_direction
+    states[cursor:] = cfg.n0 * (
+        1.0 + float(radius) * composition_direction
+    )
     return states
 
 
@@ -1647,6 +1873,15 @@ def parse_radii(text: str) -> list[float]:
 
 
 def train(args: argparse.Namespace) -> None:
+    args.fixed_anchor_random_protocol = bool(
+        getattr(args, "fixed_anchor_random_protocol", False)
+    )
+    args.fixed_anchor_max_relative_loss_increase = float(
+        getattr(args, "fixed_anchor_max_relative_loss_increase", 0.01)
+    )
+    args.fixed_anchor_max_absolute_loss_increase = float(
+        getattr(args, "fixed_anchor_max_absolute_loss_increase", 1.0e-12)
+    )
     args.full_gradient_weight = float(
         getattr(args, "full_gradient_weight", 0.0)
     )
@@ -1667,6 +1902,30 @@ def train(args: argparse.Namespace) -> None:
         raise ValueError("full_gradient_max_weight must be nonnegative")
     if args.full_gradient_max_tau <= 0.0:
         raise ValueError("full_gradient_max_tau must be positive")
+    if args.fixed_anchor_random_protocol:
+        if args.initial_state_sampling != "componentwise":
+            raise ValueError(
+                "--fixed_anchor_random_protocol requires componentwise sampling"
+            )
+        if args.include_resistant_heavy:
+            raise ValueError(
+                "--fixed_anchor_random_protocol already includes the "
+                "structured-r=.20 anchor; do not also request "
+                "--include_resistant_heavy"
+            )
+        if args.batch_size <= 0 or args.validation_size <= 0:
+            raise ValueError(
+                "the fixed-anchor protocol requires positive random-state counts"
+            )
+        anchor_loss_limits(
+            {name: 0.0 for name in FIXED_ANCHOR_NAMES},
+            max_relative_increase=(
+                args.fixed_anchor_max_relative_loss_increase
+            ),
+            max_absolute_increase=(
+                args.fixed_anchor_max_absolute_loss_increase
+            ),
+        )
     set_seed(args.seed)
     device = torch.device(
         args.device
@@ -1710,7 +1969,10 @@ def train(args: argparse.Namespace) -> None:
     args.action_parameterization = str(model.action_parameterization)
     args.action_offset = float(model.action_offset)
     checkpoint_problem = checkpoint.get("problem", {})
-    if int(checkpoint_problem.get("n", cfg.n)) != cfg.n:
+    if (
+        int(checkpoint_problem.get("n", cfg.n)) != cfg.n
+        and not args.allow_grid_continuation
+    ):
         raise ValueError("time-only checkpoint grid mismatch")
     for key in ("T", "umax", "beta", "alpha", "gamma", "n0", "m_suppression"):
         if not math.isclose(
@@ -1732,6 +1994,8 @@ def train(args: argparse.Namespace) -> None:
         )
         resume_problem = resume_checkpoint.get("problem", {})
         for key in ("n", "m"):
+            if key == "n" and args.allow_grid_continuation:
+                continue
             if int(resume_problem.get(key, getattr(cfg, key))) != int(
                 getattr(cfg, key)
             ):
@@ -1752,6 +2016,11 @@ def train(args: argparse.Namespace) -> None:
             "training_integrator",
         )
         for key in compatibility_keys:
+            if (
+                key == "training_integrator"
+                and args.allow_resume_integrator_mismatch
+            ):
+                continue
             if key in resume_args and resume_args[key] != getattr(args, key):
                 raise ValueError(
                     f"resume checkpoint {key} mismatch: "
@@ -1760,6 +2029,15 @@ def train(args: argparse.Namespace) -> None:
         model.load_state_dict(resume_checkpoint["model_state"])
         model.to(device=device, dtype=dtype)
         model.set_feature_vectors(params["r"], params["phi"])
+        if args.preserve_resume_nominal_reference:
+            stored_reference = resume_checkpoint.get("nominal_reference")
+            if stored_reference is None:
+                raise ValueError(
+                    "resume checkpoint contains no nominal reference to preserve"
+                )
+            model.set_nominal_reference(
+                stored_reference.to(device=device, dtype=dtype)
+            )
         print(f"Loaded feedback checkpoint from {resume_checkpoint_path}")
     elif args.state_checkpoint:
         state_checkpoint_path = Path(args.state_checkpoint)
@@ -1825,7 +2103,11 @@ def train(args: argparse.Namespace) -> None:
             )
         model.set_nominal_reference(nominal_states[0])
 
-    refresh_nominal_reference()
+    if not (
+        resume_checkpoint_path is not None
+        and args.preserve_resume_nominal_reference
+    ):
+        refresh_nominal_reference()
 
     if args.auto_residual_scales:
         with torch.enable_grad():
@@ -1949,25 +2231,63 @@ def train(args: argparse.Namespace) -> None:
         min_lr=args.min_lr,
     )
 
-    validation_directions = make_fixed_directions(
-        args.validation_size, cfg.m, args.validation_seed, torch.float64
-    )
-    validation_initial = test_states_from_directions(
-        validation_directions, args.train_radius, cfg, device, dtype
-    )
-    if args.include_resistant_heavy and validation_initial.shape[0] >= 2:
-        validation_initial[0] = cfg.n0
-        validation_initial[1] = cfg.n0 * (
-            1.0
-            + args.train_radius
-            * torch.linspace(
-                -1.0,
-                1.0,
-                cfg.m,
-                device=device,
-                dtype=dtype,
-            )
+    fixed_anchor_validation: torch.Tensor | None = None
+    validation_random_initial: torch.Tensor | None = None
+    if args.fixed_anchor_random_protocol:
+        validation_generator = torch.Generator(device="cpu").manual_seed(
+            args.validation_seed
         )
+        fixed_anchor_validation = fixed_anchor_initial_states(
+            cfg,
+            device,
+            dtype,
+        )
+        validation_random_initial = sample_componentwise_initial_states(
+            args.validation_size,
+            cfg,
+            FIXED_ANCHOR_RANDOM_RADIUS,
+            torch.device("cpu"),
+            torch.float64,
+            generator=validation_generator,
+        ).to(device=device, dtype=dtype)
+        validation_initial = torch.cat(
+            (fixed_anchor_validation, validation_random_initial),
+            dim=0,
+        )
+    elif args.initial_state_sampling == "mixed_random_composition":
+        validation_generator = torch.Generator(device="cpu").manual_seed(
+            args.validation_seed
+        )
+        validation_initial = sample_mixed_random_composition_initial_states(
+            args.validation_size,
+            cfg,
+            args.train_radius,
+            torch.device("cpu"),
+            torch.float64,
+            generator=validation_generator,
+            composition_fraction=args.mixed_composition_fraction,
+            include_resistant_heavy=args.include_resistant_heavy,
+        ).to(device=device, dtype=dtype)
+    else:
+        validation_directions = make_fixed_directions(
+            args.validation_size, cfg.m, args.validation_seed, torch.float64
+        )
+        validation_initial = test_states_from_directions(
+            validation_directions, args.train_radius, cfg, device, dtype
+        )
+        if args.include_resistant_heavy and validation_initial.shape[0] >= 2:
+            validation_initial[0] = cfg.n0
+            validation_initial[1] = cfg.n0 * (
+                1.0
+                + args.train_radius
+                * torch.linspace(
+                    -1.0,
+                    1.0,
+                    cfg.m,
+                    device=device,
+                    dtype=dtype,
+                )
+            )
     generator_device = device if device.type in {"cpu", "cuda"} else torch.device("cpu")
     training_generator = torch.Generator(device=generator_device).manual_seed(
         args.training_sample_seed_base + args.seed
@@ -1989,6 +2309,11 @@ def train(args: argparse.Namespace) -> None:
     best_full_gradient_linf_state: dict[str, torch.Tensor] | None = None
     best_full_gradient_linf_reference: torch.Tensor | None = None
     best_full_gradient_linf_epoch: int | None = None
+    anchor_baseline_losses: dict[str, float] | None = None
+    fixed_anchor_limits: dict[str, float] | None = None
+    best_anchor_losses: dict[str, float] | None = None
+    best_full_gradient_anchor_losses: dict[str, float] | None = None
+    best_full_gradient_linf_anchor_losses: dict[str, float] | None = None
 
     def evaluate(epoch: int) -> float:
         nonlocal best_value, best_state, best_reference, best_epoch
@@ -1999,6 +2324,9 @@ def train(args: argparse.Namespace) -> None:
         nonlocal best_full_gradient_linf_value, best_full_gradient_linf_total_loss
         nonlocal best_full_gradient_linf_state, best_full_gradient_linf_reference
         nonlocal best_full_gradient_linf_epoch
+        nonlocal anchor_baseline_losses, fixed_anchor_limits
+        nonlocal best_anchor_losses, best_full_gradient_anchor_losses
+        nonlocal best_full_gradient_linf_anchor_losses
         model.eval()
         previous_gradient_weight = getattr(
             args, "_current_full_gradient_weight", None
@@ -2011,11 +2339,68 @@ def train(args: argparse.Namespace) -> None:
             args.full_gradient_max_weight
         )
         with torch.no_grad():
-            validation_pack = section5_loss(
-                model, validation_initial, cfg, params, args,
-                state_blind=args.state_blind,
-            )
-            metrics = scalar_metrics(validation_pack, cfg, args)
+            anchor_losses: dict[str, float] = {}
+            anchor_eligible = True
+            if args.fixed_anchor_random_protocol:
+                if (
+                    fixed_anchor_validation is None
+                    or validation_random_initial is None
+                ):
+                    raise RuntimeError(
+                        "fixed-anchor validation groups were not initialized"
+                    )
+                random_pack = section5_loss(
+                    model,
+                    validation_random_initial,
+                    cfg,
+                    params,
+                    args,
+                    state_blind=args.state_blind,
+                )
+                metrics = scalar_metrics(random_pack, cfg, args)
+                selection_metrics = metrics
+                for index, name in enumerate(FIXED_ANCHOR_NAMES):
+                    anchor_pack = section5_loss(
+                        model,
+                        fixed_anchor_validation[index : index + 1],
+                        cfg,
+                        params,
+                        args,
+                        state_blind=args.state_blind,
+                    )
+                    anchor_losses[name] = scalar_metrics(
+                        anchor_pack,
+                        cfg,
+                        args,
+                    )["loss"]
+                if anchor_baseline_losses is None:
+                    anchor_baseline_losses = dict(anchor_losses)
+                    fixed_anchor_limits = anchor_loss_limits(
+                        anchor_baseline_losses,
+                        max_relative_increase=(
+                            args.fixed_anchor_max_relative_loss_increase
+                        ),
+                        max_absolute_increase=(
+                            args.fixed_anchor_max_absolute_loss_increase
+                        ),
+                    )
+                if fixed_anchor_limits is None:
+                    raise RuntimeError("fixed-anchor limits were not initialized")
+                anchor_eligible = anchor_gate_passes(
+                    anchor_losses,
+                    fixed_anchor_limits,
+                )
+            else:
+                validation_pack = section5_loss(
+                    model,
+                    validation_initial,
+                    cfg,
+                    params,
+                    args,
+                    state_blind=args.state_blind,
+                )
+                metrics = scalar_metrics(validation_pack, cfg, args)
+                selection_metrics = metrics
         if previous_gradient_weight is None:
             delattr(args, "_current_full_gradient_weight")
         else:
@@ -2027,22 +2412,65 @@ def train(args: argparse.Namespace) -> None:
                 previous_gradient_max_weight
             )
         row = {"epoch": epoch, **metrics}
+        if args.fixed_anchor_random_protocol:
+            if fixed_anchor_limits is None:
+                raise RuntimeError("fixed-anchor limits were not initialized")
+            row.update(
+                {
+                    "selection_random_validation_loss": (
+                        selection_metrics["loss"]
+                    ),
+                    "selection_random_full_gradient_loss": (
+                        selection_metrics["full_gradient_loss"]
+                    ),
+                    "selection_random_full_gradient_residual_linf": (
+                        selection_metrics["full_gradient_residual_linf"]
+                    ),
+                    "selection_anchor_gate_pass": int(anchor_eligible),
+                }
+            )
+            for name in FIXED_ANCHOR_NAMES:
+                row[f"selection_anchor_{name}_loss"] = anchor_losses[name]
+                row[f"selection_anchor_{name}_limit"] = (
+                    fixed_anchor_limits[name]
+                )
         history.append(row)
-        if epoch >= args.selection_start_epoch and metrics["loss"] < best_value:
-            best_value = metrics["loss"]
+        if args.fixed_anchor_random_protocol:
+            primary_is_better = anchor_gated_candidate_is_better(
+                random_validation_loss=selection_metrics["loss"],
+                anchor_losses=anchor_losses,
+                anchor_limits=fixed_anchor_limits,
+                best_random_validation_loss=best_value,
+            )
+        else:
+            primary_is_better = metrics["loss"] < best_value
+        selection_epoch_eligible = (
+            epoch >= args.selection_start_epoch
+            or (args.fixed_anchor_random_protocol and epoch == 0)
+        )
+        if selection_epoch_eligible and primary_is_better:
+            best_value = selection_metrics["loss"]
             best_epoch = epoch
             best_state = {
                 key: value.detach().cpu().clone()
                 for key, value in model.state_dict().items()
             }
             best_reference = model.nominal_reference.detach().cpu().clone()
-            best_combined_full_gradient = metrics["full_gradient_loss"]
+            best_combined_full_gradient = selection_metrics[
+                "full_gradient_loss"
+            ]
+            if args.fixed_anchor_random_protocol:
+                best_anchor_losses = dict(anchor_losses)
         if (
-            epoch >= args.selection_start_epoch
-            and metrics["full_gradient_loss"] < best_full_gradient_value
+            selection_epoch_eligible
+            and anchor_eligible
+            and selection_metrics["full_gradient_loss"]
+            < best_full_gradient_value
         ):
-            best_full_gradient_value = metrics["full_gradient_loss"]
-            best_full_gradient_total_loss = metrics["loss"]
+            best_full_gradient_value = selection_metrics[
+                "full_gradient_loss"
+            ]
+            best_full_gradient_total_loss = selection_metrics["loss"]
             best_full_gradient_epoch = epoch
             best_full_gradient_state = {
                 key: value.detach().cpu().clone()
@@ -2051,15 +2479,18 @@ def train(args: argparse.Namespace) -> None:
             best_full_gradient_reference = (
                 model.nominal_reference.detach().cpu().clone()
             )
+            if args.fixed_anchor_random_protocol:
+                best_full_gradient_anchor_losses = dict(anchor_losses)
         if (
-            epoch >= args.selection_start_epoch
-            and metrics["full_gradient_residual_linf"]
+            selection_epoch_eligible
+            and anchor_eligible
+            and selection_metrics["full_gradient_residual_linf"]
             < best_full_gradient_linf_value
         ):
-            best_full_gradient_linf_value = metrics[
+            best_full_gradient_linf_value = selection_metrics[
                 "full_gradient_residual_linf"
             ]
-            best_full_gradient_linf_total_loss = metrics["loss"]
+            best_full_gradient_linf_total_loss = selection_metrics["loss"]
             best_full_gradient_linf_epoch = epoch
             best_full_gradient_linf_state = {
                 key: value.detach().cpu().clone()
@@ -2068,6 +2499,14 @@ def train(args: argparse.Namespace) -> None:
             best_full_gradient_linf_reference = (
                 model.nominal_reference.detach().cpu().clone()
             )
+            if args.fixed_anchor_random_protocol:
+                best_full_gradient_linf_anchor_losses = dict(anchor_losses)
+        selection_suffix = (
+            f" random={selection_metrics['loss']:.6g} "
+            f"anchors={'pass' if anchor_eligible else 'fail'}"
+            if args.fixed_anchor_random_protocol
+            else ""
+        )
         print(
             f"[{args.option} {epoch:04d}] loss={metrics['loss']:.6g} "
             f"gap={metrics['opt_gap']:.6g} J={metrics['objective']:.6f} "
@@ -2076,10 +2515,10 @@ def train(args: argparse.Namespace) -> None:
             f"Ginf={metrics['full_gradient_residual_linf']:.3g} "
             f"up={metrics['projection_upper_count_mean']:.2f} "
             f"u=({metrics['u_min']:.3f},{metrics['u_max']:.3f}) "
-            f"jump={metrics['max_jump']:.3f}",
+            f"jump={metrics['max_jump']:.3f}{selection_suffix}",
             flush=True,
         )
-        return metrics["loss"]
+        return selection_metrics["loss"]
 
     evaluate(0)
     for epoch in range(1, args.epochs + 1):
@@ -2097,16 +2536,36 @@ def train(args: argparse.Namespace) -> None:
                 flush=True,
             )
         model.train()
-        initial = sample_componentwise_initial_states(
-            args.batch_size,
-            cfg,
-            args.train_radius,
-            generator_device,
-            dtype,
-            generator=training_generator,
-            include_nominal=True,
-            include_resistant_heavy=args.include_resistant_heavy,
-        ).to(device=device)
+        if args.fixed_anchor_random_protocol:
+            initial = sample_fixed_anchor_random_initial_states(
+                args.batch_size,
+                cfg,
+                generator_device,
+                dtype,
+                generator=training_generator,
+            ).to(device=device)
+        elif args.initial_state_sampling == "mixed_random_composition":
+            initial = sample_mixed_random_composition_initial_states(
+                args.batch_size,
+                cfg,
+                args.train_radius,
+                generator_device,
+                dtype,
+                generator=training_generator,
+                composition_fraction=args.mixed_composition_fraction,
+                include_resistant_heavy=args.include_resistant_heavy,
+            ).to(device=device)
+        else:
+            initial = sample_componentwise_initial_states(
+                args.batch_size,
+                cfg,
+                args.train_radius,
+                generator_device,
+                dtype,
+                generator=training_generator,
+                include_nominal=True,
+                include_resistant_heavy=args.include_resistant_heavy,
+            ).to(device=device)
         optimizer.zero_grad(set_to_none=True)
         if args.full_gradient_ramp_epochs > 0:
             full_gradient_ramp = min(
@@ -2173,6 +2632,49 @@ def train(args: argparse.Namespace) -> None:
         raise RuntimeError("training did not produce a full-gradient checkpoint")
     if best_full_gradient_linf_state is None:
         raise RuntimeError("training did not produce a full-gradient Linf checkpoint")
+
+    def fixed_anchor_checkpoint_metadata(
+        selected_anchor_losses: dict[str, float] | None,
+        *,
+        random_ranking_metric: str,
+    ) -> dict[str, object]:
+        if not args.fixed_anchor_random_protocol:
+            return {}
+        if (
+            anchor_baseline_losses is None
+            or fixed_anchor_limits is None
+            or selected_anchor_losses is None
+        ):
+            raise RuntimeError(
+                "selected fixed-anchor checkpoint lacks gate diagnostics"
+            )
+        return {
+            "selection_protocol": {
+                "name": "fixed_three_anchor_random_validation_v1",
+                "rule": (
+                    "all three anchor losses must satisfy their independent "
+                    "epoch-0-relative hard limits; eligible checkpoints are "
+                    f"ranked by random-state {random_ranking_metric}"
+                ),
+                "anchor_names": list(FIXED_ANCHOR_NAMES),
+                "anchor_radii": list(FIXED_ANCHOR_RADII),
+                "random_radius": FIXED_ANCHOR_RANDOM_RADIUS,
+                "training_random_count": args.batch_size,
+                "validation_random_count": args.validation_size,
+                "anchor_baseline_losses": dict(anchor_baseline_losses),
+                "anchor_loss_limits": dict(fixed_anchor_limits),
+                "selected_anchor_losses": dict(selected_anchor_losses),
+                "max_relative_anchor_loss_increase": (
+                    args.fixed_anchor_max_relative_loss_increase
+                ),
+                "max_absolute_anchor_loss_increase": (
+                    args.fixed_anchor_max_absolute_loss_increase
+                ),
+                "physical_objective_used_for_training": False,
+                "physical_objective_used_for_checkpoint_selection": False,
+            }
+        }
+
     model.load_state_dict(best_state)
     if best_reference is None:
         raise RuntimeError("best checkpoint is missing its nominal reference")
@@ -2189,7 +2691,15 @@ def train(args: argparse.Namespace) -> None:
             "best_validation_loss": best_value,
             "best_validation_full_gradient_loss": best_combined_full_gradient,
             "best_epoch": best_epoch,
-            "selection_metric": "loss",
+            "selection_metric": (
+                "random_validation_loss_subject_to_independent_anchor_gates"
+                if args.fixed_anchor_random_protocol
+                else "loss"
+            ),
+            **fixed_anchor_checkpoint_metadata(
+                best_anchor_losses,
+                random_ranking_metric="loss",
+            ),
             "time_checkpoint": str(time_checkpoint),
             "resume_checkpoint": (
                 str(resume_checkpoint_path)
@@ -2219,7 +2729,16 @@ def train(args: argparse.Namespace) -> None:
             "best_validation_loss": best_full_gradient_total_loss,
             "best_validation_full_gradient_loss": best_full_gradient_value,
             "best_epoch": best_full_gradient_epoch,
-            "selection_metric": "full_gradient_loss",
+            "selection_metric": (
+                "random_validation_full_gradient_loss_subject_to_"
+                "independent_anchor_gates"
+                if args.fixed_anchor_random_protocol
+                else "full_gradient_loss"
+            ),
+            **fixed_anchor_checkpoint_metadata(
+                best_full_gradient_anchor_losses,
+                random_ranking_metric="full_gradient_loss",
+            ),
             "time_checkpoint": str(time_checkpoint),
             "resume_checkpoint": (
                 str(resume_checkpoint_path)
@@ -2249,7 +2768,16 @@ def train(args: argparse.Namespace) -> None:
             "best_validation_loss": best_full_gradient_linf_total_loss,
             "best_validation_full_gradient_linf": best_full_gradient_linf_value,
             "best_epoch": best_full_gradient_linf_epoch,
-            "selection_metric": "full_gradient_residual_linf",
+            "selection_metric": (
+                "random_validation_full_gradient_residual_linf_subject_to_"
+                "independent_anchor_gates"
+                if args.fixed_anchor_random_protocol
+                else "full_gradient_residual_linf"
+            ),
+            **fixed_anchor_checkpoint_metadata(
+                best_full_gradient_linf_anchor_losses,
+                random_ranking_metric="full_gradient_residual_linf",
+            ),
             "time_checkpoint": str(time_checkpoint),
             "resume_checkpoint": (
                 str(resume_checkpoint_path)
@@ -2296,6 +2824,32 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "optional full feedback checkpoint used to continue training; "
             "the time checkpoint still records the underlying time-only branch"
+        ),
+    )
+    parser.add_argument(
+        "--allow_resume_integrator_mismatch",
+        action="store_true",
+        help=(
+            "allow a full feedback checkpoint to continue with the requested "
+            "training integrator"
+        ),
+    )
+    parser.add_argument(
+        "--preserve_resume_nominal_reference",
+        action="store_true",
+        help=(
+            "retain the nominal reference stored in a full resume checkpoint "
+            "instead of recomputing it"
+        ),
+    )
+    parser.add_argument(
+        "--allow_grid_continuation",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "allow a grid-agnostic Transformer checkpoint to be evaluated and "
+            "continued on a different number of time intervals; the nominal "
+            "reference is recomputed on the requested grid"
         ),
     )
     parser.add_argument(
@@ -2381,12 +2935,61 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--train_radius", type=float, default=0.10)
     parser.add_argument(
+        "--initial_state_sampling",
+        choices=["componentwise", "mixed_random_composition"],
+        default="componentwise",
+        help=(
+            "sample iid componentwise perturbations, or mix them with "
+            "fixed-total zero-sum composition perturbations"
+        ),
+    )
+    parser.add_argument(
+        "--mixed_composition_fraction",
+        type=float,
+        default=0.5,
+        help=(
+            "fraction of non-anchor rows assigned to zero-sum composition "
+            "perturbations in mixed_random_composition mode"
+        ),
+    )
+    parser.add_argument(
         "--include_resistant_heavy",
         action=argparse.BooleanOptionalAction,
         default=False,
         help=(
             "include the deterministic linear -radius to +radius phenotype "
             "perturbation as the second training and validation anchor"
+        ),
+    )
+    parser.add_argument(
+        "--fixed_anchor_random_protocol",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help=(
+            "opt in to batches containing fixed nominal, structured-r=.10, "
+            "and structured-r=.20 anchors followed by r=.20 iid random states; "
+            "batch_size and validation_size count only the random rows, so "
+            "each corresponding batch contains three additional anchors; "
+            "checkpoint ranking then minimizes random validation loss subject "
+            "to a separate hard loss gate for every anchor"
+        ),
+    )
+    parser.add_argument(
+        "--fixed_anchor_max_relative_loss_increase",
+        type=float,
+        default=0.01,
+        help=(
+            "maximum relative increase from the epoch-0 validation loss "
+            "per fixed anchor; used only by --fixed_anchor_random_protocol"
+        ),
+    )
+    parser.add_argument(
+        "--fixed_anchor_max_absolute_loss_increase",
+        type=float,
+        default=1.0e-12,
+        help=(
+            "nonnegative absolute slack added to every fixed-anchor loss gate; "
+            "used only by --fixed_anchor_random_protocol"
         ),
     )
     parser.add_argument("--epochs", type=int, default=100)

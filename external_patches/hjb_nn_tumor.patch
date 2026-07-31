@@ -1,0 +1,557 @@
+diff --git a/examples/choose_problem.py b/examples/choose_problem.py
+index 01c7279..48e5adb 100644
+--- a/examples/choose_problem.py
++++ b/examples/choose_problem.py
+@@ -1,14 +1,18 @@
+-##### Change this line for different a different problem. #####
++import os
+ 
+-system = 'satellite'
+-#system = 'burgers'
++##### Change this line or set HJB_NN_SYSTEM for a different problem. #####
+ 
+-time_dependent = False #True
++system = os.environ.get('HJB_NN_SYSTEM', 'satellite')
++time_dependent = bool(int(os.environ.get('HJB_NN_TIME_DEPENDENT', '0')))
+ 
+ if system == 'satellite':
+     from examples.satellite.problem_def import setup_problem, config_NN
+ elif system == 'burgers':
+     from examples.burgers.problem_def import setup_problem, config_NN
++elif system == 'tumor':
++    from examples.tumor.problem_def import setup_problem, config_NN
++else:
++    raise ValueError('Unknown HJB_NN_SYSTEM: ' + system)
+ 
+ problem = setup_problem()
+ config = config_NN(problem.N_states, problem.t1, time_dependent)
+diff --git a/examples/problem_def_template.py b/examples/problem_def_template.py
+index c98bbff..5c9a6a3 100644
+--- a/examples/problem_def_template.py
++++ b/examples/problem_def_template.py
+@@ -4,7 +4,11 @@ problems, as well as prototype classes to base new problems on.
+ '''
+ 
+ import numpy as np
+-from scipy.integrate import cumtrapz, solve_ivp
++try:
++    from scipy.integrate import cumtrapz
++except ImportError:
++    from scipy.integrate import cumulative_trapezoid as cumtrapz
++from scipy.integrate import solve_ivp
+ 
+ class config_prototype:
+     def __init__(self, N_states, t1, time_dependent):
+diff --git a/generate.py b/generate.py
+index f206b73..7a66754 100644
+--- a/generate.py
++++ b/generate.py
+@@ -27,6 +27,8 @@ else:
+ 
+ Ns = config.Ns[data_type]
+ X0_pool = problem.sample_X0(Ns)
++if np.asarray(X0_pool).ndim == 1:
++    X0_pool = np.asarray(X0_pool).reshape((N_states, 1))
+ 
+ # Arrays to store generated data
+ t_OUT = np.empty((1,0))
+@@ -42,7 +44,7 @@ fail_time = []
+ # ---------------------------------------------------------------------------- #
+ 
+ while N_sol < Ns:
+-    print('Solving BVP #', N_sol+1, 'of', Ns, '...', end='\r')
++    print('Solving BVP #', N_sol+1, 'of', Ns, '...', end='\r', flush=True)
+ 
+     X0 = X0_pool[:,N_sol]
+     bc = problem.make_bc(X0)
+@@ -50,10 +52,22 @@ while N_sol < Ns:
+     start_time = time.time()
+ 
+     try:
+-        # Initial guess is zeros
+-        t_guess = np.array([0.])
+-        X_guess = np.vstack((X0.reshape(-1,1),
+-                             np.zeros((N_states+1, 1))))
++        tau_schedule = getattr(problem, 'bvp_tau_schedule', None)
++        if tau_schedule:
++            problem.tau = tau_schedule[0]
++        # Let a problem with nonzero terminal gradient provide a compatible
++        # costate scale. The original examples fall back to the zero guess.
++        if hasattr(problem, 'make_initial_mesh_guess'):
++            t_guess, X_guess = problem.make_initial_mesh_guess(X0, config.tseq[0])
++            warm_mesh = True
++        else:
++            t_guess = np.array([0.])
++            warm_mesh = False
++            if hasattr(problem, 'make_initial_guess'):
++                X_guess = problem.make_initial_guess(X0)
++            else:
++                X_guess = np.vstack((X0.reshape(-1,1),
++                                     np.zeros((N_states+1, 1))))
+ 
+         tol = 1e-01
+ 
+@@ -64,18 +78,45 @@ while N_sol < Ns:
+             if k == config.tseq.shape[0] - 1:
+                 tol = config.data_tol
+ 
+-            t_guess = np.concatenate((t_guess, config.tseq[k:k+1]))
+-            X_guess = np.hstack((X_guess, X_guess[:,-1:]))
++            if not (warm_mesh and k == 0):
++                t_guess = np.concatenate((t_guess, config.tseq[k:k+1]))
++                X_guess = np.hstack((X_guess, X_guess[:,-1:]))
+ 
+             SOL = solve_bvp(problem.aug_dynamics, bc, t_guess, X_guess,
+                             verbose=0, tol=tol, max_nodes=config.max_nodes)
+ 
+             if not SOL.success:
+-                print(SOL.message)
++                print(
++                    f"{SOL.message} horizon={config.tseq[k]:.3g}, "
++                    f"nodes={SOL.x.size}, tol={tol:.3g}",
++                    flush=True,
++                )
+                 warnings.warn(Warning())
+             t_guess = SOL.x
+             X_guess = SOL.y
+ 
++        # Continue the smooth Hamiltonian minimizer from an easy BVP to the
++        # final tumor temperature while retaining the converged trajectory.
++        if tau_schedule:
++            for tau_value in tau_schedule[1:]:
++                problem.tau = tau_value
++                SOL = solve_bvp(
++                    problem.aug_dynamics,
++                    bc,
++                    SOL.x,
++                    SOL.y,
++                    verbose=0,
++                    tol=config.data_tol,
++                    max_nodes=config.max_nodes,
++                )
++                if not SOL.success:
++                    print(
++                        f"{SOL.message} during tau continuation to {tau_value:g}; "
++                        f"nodes={SOL.x.size}",
++                        flush=True,
++                    )
++                    warnings.warn(Warning())
++
+         sol_time.append(time.time() - start_time)
+ 
+         V = SOL.y[-1:] + problem.terminal_cost(SOL.y[:N_states,-1])
+@@ -93,6 +134,11 @@ while N_sol < Ns:
+         X0_pool[:,N_sol] = problem.sample_X0(1)
+ 
+         N_fail += 1
++        if N_fail >= getattr(config, 'max_failures', max(10, 5*Ns)):
++            raise RuntimeError(
++                'BVP data generation exceeded the configured failure limit '
++                f'({N_fail} failures before {N_sol}/{Ns} solutions).'
++            )
+ 
+ # ---------------------------------------------------------------------------- #
+ 
+diff --git a/train.py b/train.py
+index 4a5ebde..82cc9ce 100644
+--- a/train.py
++++ b/train.py
+@@ -4,7 +4,7 @@ according to examples/choose_problem.py.
+ '''
+ 
+ import numpy as np
+-import tensorflow as tf
++import tensorflow.compat.v1 as tf
+ import scipy.io
+ import time
+ 
+@@ -17,6 +17,7 @@ else:
+     from utilities.neural_networks import HJBnet_t0 as HJBnet
+ 
+ np.random.seed(config.random_seeds['train'])
++tf.disable_v2_behavior()
+ tf.set_random_seed(config.random_seeds['train'])
+ 
+ # ---------------------------------------------------------------------------- #
+diff --git a/utilities/neural_networks.py b/utilities/neural_networks.py
+index 92590d6..dd66e0b 100644
+--- a/utilities/neural_networks.py
++++ b/utilities/neural_networks.py
+@@ -4,7 +4,8 @@ and V(0,x). These are HJBnet and HJBnet_t0, respectively.
+ '''
+ 
+ import numpy as np
+-import tensorflow as tf
++import tensorflow.compat.v1 as tf
++tf.disable_v2_behavior()
+ from scipy import stats
+ from scipy.integrate import solve_ivp, solve_bvp
+ import time
+@@ -58,7 +59,10 @@ class HJBnet:
+         # Builds the computational graph
+         V_pred_scaled, self.V_pred = self.make_eval_graph(self.t_tf, self.X_tf)
+         self.dVdX = tf.gradients(self.V_pred, self.X_tf)[0]
+-        self.U = self.problem.make_U_NN(self.dVdX)
++        try:
++            self.U = self.problem.make_U_NN(self.dVdX, self.X_tf)
++        except TypeError:
++            self.U = self.problem.make_U_NN(self.dVdX)
+ 
+         dVdX_norm = tf.sqrt(tf.reduce_sum(self.dVdX**2, axis=0))
+         self.k_largest = tf.placeholder(tf.int32, ())
+diff --git a/utilities/optimize.py b/utilities/optimize.py
+index e52ba4a..80d13fc 100644
+--- a/utilities/optimize.py
++++ b/utilities/optimize.py
+@@ -9,13 +9,16 @@ to allow reusing of pre-compiled gradient graphs and easy access
+ to evaluations of the minimized loss function and gradient.
+ '''
+ 
+-from tensorflow.contrib.opt import ExternalOptimizerInterface
++import tensorflow.compat.v1 as tf
+ from tensorflow.python.ops import array_ops
+ from tensorflow.python.ops import gradients
+ from tensorflow.python.ops import variables
+ import numpy as np
+ 
+-class ScipyOptimizerInterface(ExternalOptimizerInterface):
++tf.disable_v2_behavior()
++
++
++class ScipyOptimizerInterface:
+     _DEFAULT_METHOD = 'L-BFGS-B'
+ 
+     def __init__(self,
+@@ -124,6 +127,53 @@ class ScipyOptimizerInterface(ExternalOptimizerInterface):
+ 
+         self._grads_list = [loss_grads, equalities_grads, inequalities_grads]
+ 
++    def _pack(self, tensors):
++        if not tensors:
++            return array_ops.zeros([0], dtype=np.float32)
++        flats = [array_ops.reshape(tensor, [-1]) for tensor in tensors]
++        return array_ops.concat(flats, 0)
++
++    def _assign_vars(self, session, packed_var):
++        feed_dict = {}
++        for var, placeholder, packing_slice in zip(self._vars, self._update_placeholders, self._packing_slices):
++            feed_dict[placeholder] = np.reshape(packed_var[packing_slice], _get_shape_tuple(var))
++        session.run(self._var_updates, feed_dict=feed_dict)
++
++    def minimize(self, session=None, feed_dict=None, fetches=None, step_callback=None, loss_callback=None):
++        if session is None:
++            session = tf.get_default_session()
++        if feed_dict is None:
++            feed_dict = {}
++        if fetches is None:
++            fetches = []
++
++        initial_val = session.run(self._packed_var)
++
++        def loss_grad_func(x):
++            self._assign_vars(session, x)
++            fetched = session.run([self._loss, self._packed_loss_grad] + list(fetches), feed_dict=feed_dict)
++            if loss_callback is not None and len(fetched) > 2:
++                for value in fetched[2:]:
++                    loss_callback(value)
++            return fetched[0], fetched[1]
++
++        def step_func(x):
++            if step_callback is not None:
++                step_callback(x)
++
++        final_val = self._minimize(
++            initial_val,
++            loss_grad_func,
++            equality_funcs=[],
++            equality_grad_funcs=[],
++            inequality_funcs=[],
++            inequality_grad_funcs=[],
++            packed_bounds=self._packed_bounds,
++            step_callback=step_func,
++            optimizer_kwargs=self.optimizer_kwargs,
++        )
++        self._assign_vars(session, final_val)
++
+     def _minimize(self,
+                   initial_val,
+                   loss_grad_func,
+@@ -188,7 +238,10 @@ def _accumulate(list_):
+ 
+ 
+ def _get_shape_tuple(tensor):
+-    return tuple(dim.value for dim in tensor.get_shape())
++    out = []
++    for dim in tensor.get_shape():
++        out.append(dim.value if hasattr(dim, "value") else int(dim))
++    return tuple(out)
+ 
+ 
+ def _prod(array):
+diff --git a/examples/tumor/problem_def.py b/examples/tumor/problem_def.py
+new file mode 100755
+index 0000000..ce2a924
+--- /dev/null
++++ b/examples/tumor/problem_def.py
+@@ -0,0 +1,261 @@
++import os
++
++import numpy as np
++from scipy.integrate import solve_ivp
++from examples.problem_def_template import config_prototype, problem_prototype
++
++
++class config_NN(config_prototype):
++    def __init__(self, N_states, t1, time_dependent):
++        N_layers = 3
++        N_neurons = 96
++        self.layers = self.build_layers(N_states, time_dependent, N_layers, N_neurons)
++
++        self.random_seeds = {"train": 1234}
++
++        self.ODE_solver = "DOP853"
++        self.data_tol = float(os.environ.get("HJB_NN_TUMOR_DATA_TOL", "1e-2"))
++        self.max_nodes = int(os.environ.get("HJB_NN_TUMOR_MAX_NODES", "5000"))
++        self.max_failures = int(os.environ.get("HJB_NN_TUMOR_MAX_FAILURES", "32"))
++
++        Nt = int(os.environ.get("HJB_NN_TUMOR_TIME_MARCH_STEPS", "40"))
++        self.tseq = np.linspace(0.0, t1, Nt + 1)[1:]
++
++        self.dt = 2e-02
++        self.sigma = 1e-02
++        self.plotdims = [0, 10]
++
++        # Keep the official pipeline, but use a modest default data budget
++        # because the tumor BVP is 43-dimensional and has a nonsmooth limit.
++        self.Ns = {
++            "train": int(os.environ.get("HJB_NN_TUMOR_NS_TRAIN", "128")),
++            "test": int(os.environ.get("HJB_NN_TUMOR_NS_TEST", "128")),
++        }
++
++        batch_size = int(os.environ.get("HJB_NN_TUMOR_BATCH_SIZE", "0"))
++        self.batch_size = None if batch_size <= 0 else batch_size
++        self.Ns_scale = 2
++        self.Ns_cand = 2
++        self.Ns_max = 8192
++        self.conv_tol = 0.5
++        self.max_rounds = int(os.environ.get("HJB_NN_TUMOR_MAX_ROUNDS", "2"))
++        self.min_rounds = int(os.environ.get("HJB_NN_TUMOR_MIN_ROUNDS", "1"))
++        self.weight_A = [10.0] * self.max_rounds
++        self.weight_U = [0.0] * self.max_rounds
++        maxiter = int(os.environ.get("HJB_NN_TUMOR_BFGS_MAXITER", "500"))
++        maxfun = int(os.environ.get("HJB_NN_TUMOR_BFGS_MAXFUN", str(max(1000, 3 * maxiter))))
++        self.BFGS_opts = {
++            "maxiter": [maxiter] * self.max_rounds,
++            "maxfun": [maxfun] * self.max_rounds,
++            "iprint": [int(os.environ.get("HJB_NN_TUMOR_BFGS_IPRINT", "0"))] * self.max_rounds,
++        }
++
++
++class setup_problem(problem_prototype):
++    def __init__(self):
++        self.N_states = 21
++        self.N_controls = 1
++        self.t1 = 10.0
++
++        self.umax = 3.0
++        self.beta_scalar = 0.1
++        self.alpha_scalar = 1.0
++        self.gamma = 20.0
++        self.n0 = 10.0
++        self.M_scalar = 0.5
++
++        x = np.linspace(0.0, 1.0, self.N_states)
++        self.r = 2.0 / (1.0 + 3.0 * x**4)
++        self.phi = 1.0 / (1.0 + x**2)
++        self.M = np.full(self.N_states, self.M_scalar)
++        self.beta = np.full(self.N_states, self.beta_scalar)
++        self.alpha = np.full(self.N_states, self.alpha_scalar)
++
++        # The original code samples X0 from a box. For this population model,
++        # a scalar initial-population family is the stable counterpart used in
++        # the manuscript experiments.
++        self.X0_lb = np.full((self.N_states, 1), 0.5 * self.n0)
++        self.X0_ub = np.full((self.N_states, 1), 2.0 * self.n0)
++
++        # Smooth Hamiltonian minimizer used for BVP/data generation. The hard
++        # argmin is recovered as tau -> 0; the singular blend stabilizes the
++        # dominant near-singular arc of this problem.
++        self.tau = float(os.environ.get("HJB_NN_TUMOR_TAU", "2.0"))
++        schedule_text = os.environ.get("HJB_NN_TUMOR_TAU_SCHEDULE", "10,5,2")
++        self.bvp_tau_schedule = [float(value) for value in schedule_text.split(",") if value.strip()]
++        self.singular_eps = float(os.environ.get("HJB_NN_TUMOR_SINGULAR_EPS", "0.2"))
++        self.singular_tau = float(os.environ.get("HJB_NN_TUMOR_SINGULAR_TAU", "0.2"))
++        self.use_singular_blend = bool(int(os.environ.get("HJB_NN_TUMOR_USE_SINGULAR_BLEND", "0")))
++
++    def make_initial_guess(self, X0):
++        """Initial BVP column consistent with the nonzero terminal gradient."""
++        return np.vstack(
++            (
++                np.asarray(X0, dtype=float).reshape((-1, 1)),
++                self.alpha.reshape((-1, 1)),
++                np.zeros((1, 1)),
++            )
++        )
++
++    def make_initial_mesh_guess(self, X0, horizon):
++        """Build a smooth forward-backward warm start for time marching."""
++        horizon = float(horizon)
++        n_mesh = max(31, int(np.ceil(30.0 * horizon)) + 1)
++        t = np.linspace(0.0, horizon, n_mesh)
++        u = np.full(n_mesh, 1.5, dtype=float)
++        X0 = np.asarray(X0, dtype=float).reshape(-1)
++
++        def fixed_state_rhs(time, state):
++            control = float(np.interp(time, t, u))
++            N = self._safe_N(state)
++            G = np.log1p(np.mean(N))
++            return (self.r - self.phi * control - self.M * G) * N
++
++        for _ in range(30):
++            state_sol = solve_ivp(
++                fixed_state_rhs,
++                (0.0, horizon),
++                X0,
++                t_eval=t,
++                dense_output=True,
++                method="DOP853",
++                rtol=1e-7,
++                atol=1e-9,
++            )
++            N = self._safe_N(state_sol.y)
++
++            def fixed_costate_rhs(time, costate):
++                state = self._safe_N(state_sol.sol(time))
++                control = float(np.interp(time, t, u))
++                G = np.log1p(np.mean(state))
++                a = self.r - self.phi * control - self.M * G
++                coupling = np.sum(self.M * costate * state)
++                return -self.beta - costate * a + coupling / (self.N_states + state.sum())
++
++            costate_sol = solve_ivp(
++                fixed_costate_rhs,
++                (horizon, 0.0),
++                self.alpha,
++                t_eval=t[::-1],
++                method="DOP853",
++                rtol=1e-7,
++                atol=1e-9,
++            )
++            A = costate_sol.y[:, ::-1]
++            candidate = self.U_star(np.vstack((N, A, np.zeros((1, n_mesh))))).reshape(-1)
++            u = 0.8 * u + 0.2 * candidate
++
++        L = self.running_cost(N, u.reshape((1, -1))).reshape(-1)
++        value = np.zeros(n_mesh, dtype=float)
++        for index in range(n_mesh - 2, -1, -1):
++            value[index] = value[index + 1] + 0.5 * (L[index] + L[index + 1]) * (t[index + 1] - t[index])
++        return t, np.vstack((N, A, value.reshape((1, -1))))
++
++    def sample_X0(self, Ns):
++        scales = np.random.uniform(0.5, 2.0, size=(1, Ns))
++        X0 = self.n0 * np.ones((self.N_states, Ns)) * scales
++        if Ns == 1:
++            return X0.flatten()
++        return X0
++
++    def _safe_N(self, N):
++        return np.maximum(N, 1e-10)
++
++    def _G(self, N):
++        return np.log1p(np.mean(self._safe_N(N), axis=0, keepdims=True))
++
++    def _singular_control(self, N):
++        N_safe = self._safe_N(N)
++        G = self._G(N_safe)
++        num = (self.beta[:, None] * (self.r[:, None] - self.M[:, None] * G) * N_safe).sum(axis=0, keepdims=True)
++        den = (self.beta[:, None] * self.phi[:, None] * N_safe).sum(axis=0, keepdims=True)
++        return np.clip(num / np.maximum(den, 1e-12), 0.0, self.umax)
++
++    def U_star(self, X_aug):
++        X_aug = np.asarray(X_aug)
++        if X_aug.ndim == 1:
++            X_aug = X_aug.reshape((-1, 1))
++        N = self._safe_N(X_aug[: self.N_states])
++        A = X_aug[self.N_states : 2 * self.N_states]
++        psi = self.gamma - (self.phi[:, None] * N * A).sum(axis=0, keepdims=True)
++        u_bang = self.umax / (1.0 + np.exp(np.clip(psi / self.tau, -60.0, 60.0)))
++        if not self.use_singular_blend:
++            return np.clip(u_bang, 0.0, self.umax)
++        u_sing = self._singular_control(N)
++        q = 1.0 / (1.0 + np.exp(-np.clip((self.singular_eps - np.abs(psi)) / self.singular_tau, -60.0, 60.0)))
++        return np.clip((1.0 - q) * u_bang + q * u_sing, 0.0, self.umax)
++
++    def make_U_NN(self, A, X):
++        import tensorflow.compat.v1 as tf
++
++        X_safe = tf.maximum(X, 1e-10)
++        phi = tf.constant(self.phi.reshape((-1, 1)), dtype=tf.float32)
++        beta = tf.constant(self.beta.reshape((-1, 1)), dtype=tf.float32)
++        r = tf.constant(self.r.reshape((-1, 1)), dtype=tf.float32)
++        M = tf.constant(self.M.reshape((-1, 1)), dtype=tf.float32)
++
++        psi = self.gamma - tf.reduce_sum(phi * X_safe * A, axis=0, keepdims=True)
++        u_bang = self.umax * tf.sigmoid(-psi / self.tau)
++        if not self.use_singular_blend:
++            return tf.clip_by_value(u_bang, 0.0, self.umax)
++
++        G = tf.log1p(tf.reduce_mean(X_safe, axis=0, keepdims=True))
++        num = tf.reduce_sum(beta * (r - M * G) * X_safe, axis=0, keepdims=True)
++        den = tf.maximum(tf.reduce_sum(beta * phi * X_safe, axis=0, keepdims=True), 1e-12)
++        u_sing = tf.clip_by_value(num / den, 0.0, self.umax)
++        q = tf.sigmoid((self.singular_eps - tf.abs(psi)) / self.singular_tau)
++        return tf.clip_by_value((1.0 - q) * u_bang + q * u_sing, 0.0, self.umax)
++
++    def make_bc(self, X0_in):
++        def bc(X_aug_0, X_aug_T):
++            X0 = X_aug_0[: self.N_states]
++            AT = X_aug_T[self.N_states : 2 * self.N_states]
++            vT = X_aug_T[2 * self.N_states :]
++            return np.concatenate((X0 - X0_in, AT - self.alpha, vT))
++
++        return bc
++
++    def running_cost(self, X, U):
++        X = np.asarray(X)
++        if X.ndim == 1:
++            X = X.reshape((-1, 1))
++        U = np.asarray(U)
++        if U.ndim == 1:
++            U = U.reshape((1, -1))
++        return (self.beta[:, None] * self._safe_N(X)).sum(axis=0, keepdims=True) + self.gamma * U
++
++    def terminal_cost(self, X):
++        X = np.asarray(X)
++        if X.ndim == 1:
++            return float(np.dot(self.alpha, self._safe_N(X)))
++        return (self.alpha[:, None] * self._safe_N(X)).sum(axis=0, keepdims=True)
++
++    def compute_cost(self, t, X, U):
++        L = self.running_cost(X, U)
++        J_running = np.trapz(L.flatten(), t.flatten())
++        return np.array([[float(self.terminal_cost(X[:, -1]) + J_running)]])
++
++    def dynamics(self, t, X, U_fun):
++        U = float(np.clip(U_fun([[t]], X.reshape((-1, 1))).flatten()[0], 0.0, self.umax))
++        N = self._safe_N(X)
++        G = np.log1p(np.mean(N))
++        return (self.r - self.phi * U - self.M * G) * N
++
++    def aug_dynamics(self, t, X_aug):
++        N = self._safe_N(X_aug[: self.N_states])
++        A = X_aug[self.N_states : 2 * self.N_states]
++        U = self.U_star(X_aug)
++
++        G = self._G(N)
++        a = self.r[:, None] - self.phi[:, None] * U - self.M[:, None] * G
++        dNdt = a * N
++
++        D = self.N_states + N.sum(axis=0, keepdims=True)
++        coupling = (self.M[:, None] * A * N).sum(axis=0, keepdims=True)
++        dAdt = -self.beta[:, None] - A * a + coupling / D
++
++        L = self.running_cost(N, U)
++        return np.vstack((dNdt, dAdt, -L))
++
++    def U_LQR(self, t, X):
++        return np.array([[1.5]])

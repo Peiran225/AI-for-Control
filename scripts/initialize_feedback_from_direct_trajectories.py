@@ -39,6 +39,10 @@ from scripts.generate_offgrid_policy_switching_diagnostics import (  # noqa: E40
 from scripts.refine_feedback_offgrid_scalar import (  # noqa: E402
     fixed_support_dense_logits,
 )
+from scripts.fixed_nominal_opt_gap import (  # noqa: E402
+    evaluate_fixed_nominal_der,
+    metric_metadata,
+)
 from train_paper_pmp_kkt import (  # noqa: E402
     ProblemConfig,
     build_params,
@@ -398,11 +402,38 @@ def train(args: argparse.Namespace) -> None:
     output = Path(args.out_dir)
     output.mkdir(parents=True, exist_ok=True)
     history: list[dict[str, float | int]] = []
+    fixed_validation_history: list[dict[str, float | int | str]] = []
     best_loss = float("inf")
     best_state: dict[str, torch.Tensor] | None = None
     best_round = -1
     best_epoch = -1
     start = time.time()
+    optimizer_step_count = 0
+
+    def record_fixed_validation(
+        dagger_round: int,
+        epoch: int,
+    ) -> dict[str, float]:
+        values = evaluate_fixed_nominal_der(
+            model,
+            cfg,
+            params,
+            state_mode="feedback",
+        )
+        fixed_validation_history.append(
+            {
+                "phase": "state_time_feedback_adaptation",
+                "subphase": "direct_trajectory_initialization",
+                "phase_step": optimizer_step_count,
+                "optimizer_step": optimizer_step_count,
+                "dagger_round": dagger_round,
+                "epoch": epoch,
+                **values,
+            }
+        )
+        return values
+
+    record_fixed_validation(0, 0)
 
     # The first round uses direct-trajectory states. Later rounds add the
     # policy's own closed-loop states while retaining the same direct actions.
@@ -455,6 +486,7 @@ def train(args: argparse.Namespace) -> None:
                 if args.grad_clip > 0.0:
                     torch.nn.utils.clip_grad_norm_(trainable, args.grad_clip)
                 optimizer.step()
+                optimizer_step_count += 1
 
             should_evaluate = (
                 epoch == 1
@@ -513,8 +545,12 @@ def train(args: argparse.Namespace) -> None:
                     ]
                 )
             )
+            fixed_validation = record_fixed_validation(
+                dagger_round, epoch
+            )
             scheduler.step(score)
             row: dict[str, float | int] = {
+                "optimizer_step": optimizer_step_count,
                 "dagger_round": dagger_round,
                 "epoch": epoch,
                 "teacher_forced_loss": float(validation_loss.cpu()),
@@ -527,6 +563,7 @@ def train(args: argparse.Namespace) -> None:
                 ),
                 "learning_rate": float(optimizer.param_groups[0]["lr"]),
                 "elapsed_seconds": time.time() - start,
+                **fixed_validation,
                 **metrics,
             }
             history.append(row)
@@ -646,6 +683,10 @@ def train(args: argparse.Namespace) -> None:
     torch.save(checkpoint_payload, output / "feedback_direct_initialization.pt")
     np.savez(output / "closed_loop_comparison.npz", **rollout_arrays)
     write_csv(output / "training_history.csv", history)
+    write_csv(
+        output / "fixed_validation_opt_gap.csv",
+        fixed_validation_history,
+    )
     summary = {
         "method": (
             "direct trajectories initialize only the nested state branch; "
@@ -666,6 +707,7 @@ def train(args: argparse.Namespace) -> None:
         "elapsed_seconds": time.time() - start,
         "teacher_trajectories": teacher_summaries,
         "checkpoint": "feedback_direct_initialization.pt",
+        "fixed_validation_metric": metric_metadata(),
     }
     (output / "summary.json").write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2), flush=True)
