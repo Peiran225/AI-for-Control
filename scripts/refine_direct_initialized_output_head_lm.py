@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refine only a Transformer's output head with scalar PMP/KKT residuals.
+"""Refine only a Transformer's output head with scalar optimality residuals.
 
 The input checkpoint may have been initialized by fitting a direct
 transcription.  After loading that checkpoint, this script uses neither the
@@ -8,10 +8,13 @@ embedding and Transformer encoder, and applies a damped Gauss--Newton
 (Levenberg--Marquardt) iteration to the original linear output head.
 
 All support nodes and all strict midpoint queries are evaluated together with
-the exact fixed-support attention mask.  The residual vector contains
-trajectory-wise ``H_u``, ``d H_u / dt``, and ``d^2 H_u / dt^2`` on the stated
-interior interval, plus projected box-KKT residuals only where the starting
-control is near a box boundary.  No auxiliary control correction is added.
+the exact fixed-support attention mask.  By default, the residual vector
+contains trajectory-wise ``H_u``,
+``d H_u / dt``, and ``d^2 H_u / dt^2`` on the stated interior interval.  A
+controlled ablation can instead match the state-only closed-form (CF)
+singular-control target on the same interval.  Both modes add projected
+box-KKT residuals only where the starting control is near a box boundary.  No
+auxiliary control correction is added.
 """
 
 from __future__ import annotations
@@ -46,6 +49,11 @@ from continue_direct_initialized_scalar_transformer import (  # noqa: E402
 )
 from refine_direct_offgrid_query_fit import (  # noqa: E402
     fixed_support_query_control,
+)
+from scripts.fixed_nominal_opt_gap import (  # noqa: E402
+    TimeOnlyPolicyAdapter,
+    evaluate_fixed_nominal_der,
+    metric_metadata,
 )
 from train_feedback_section5 import singular_quantities  # noqa: E402
 from train_paper_pmp_kkt import build_params, set_seed, time_features  # noqa: E402
@@ -98,6 +106,19 @@ def main() -> None:
     parser.add_argument("--w0", type=float, default=1.0)
     parser.add_argument("--w1", type=float, default=1.0)
     parser.add_argument("--w2", type=float, default=1.0)
+    parser.add_argument(
+        "--singular-loss",
+        choices=("derivative", "cf-state"),
+        default="derivative",
+        help=(
+            "Use scalar PMP time-derivative residuals, or match the "
+            "state-only closed-form singular-control target on the same "
+            "fixed interior interval."
+        ),
+    )
+    parser.add_argument("--cf-weight", type=float, default=1.0)
+    parser.add_argument("--cf-scale", type=float, default=1.0)
+    parser.add_argument("--b-min", type=float, default=1.0e-8)
     parser.add_argument("--boundary-weight", type=float, default=1.0)
     parser.add_argument("--psi-scale", type=float, default=1.0)
     parser.add_argument("--dot-scale", type=float, default=1.0)
@@ -112,6 +133,17 @@ def main() -> None:
     parser.add_argument("--maximum-attempts", type=int, default=8)
     parser.add_argument("--maximum-step-norm", type=float, default=2.0)
     parser.add_argument("--acceptance-tolerance", type=float, default=1.0e-12)
+    parser.add_argument(
+        "--selection-metric",
+        choices=("physical-all", "training-objective"),
+        default="physical-all",
+        help=(
+            "Select the retained checkpoint by all three reported physical "
+            "RMS components (legacy behavior), or by the residual objective "
+            "actually optimized.  The latter avoids using zero-weight "
+            "diagnostics for first-order-only controls."
+        ),
+    )
     parser.add_argument(
         "--jacobian-mode",
         choices=("forward", "reverse"),
@@ -157,6 +189,8 @@ def main() -> None:
         "psi_scale",
         "dot_scale",
         "ddot_scale",
+        "cf_scale",
+        "b_min",
         "boundary_scale",
         "initial_damping",
         "minimum_damping",
@@ -166,9 +200,17 @@ def main() -> None:
     ):
         if getattr(args, name) <= 0.0:
             raise ValueError(f"{name} must be positive")
-    for name in ("w0", "w1", "w2", "boundary_weight"):
+    for name in ("w0", "w1", "w2", "cf_weight", "boundary_weight"):
         if getattr(args, name) < 0.0:
             raise ValueError(f"{name} must be nonnegative")
+    if (
+        args.singular_loss == "cf-state"
+        and args.selection_metric != "training-objective"
+    ):
+        raise ValueError(
+            "CF state-target runs must be selected by their actual training "
+            "objective"
+        )
 
     set_seed(args.seed)
     if hasattr(torch.backends, "mha"):
@@ -186,6 +228,10 @@ def main() -> None:
 
     model, cfg, source = load_model(start_checkpoint, device)
     model.eval()
+    fixed_validation_model = TimeOnlyPolicyAdapter(model, cfg)
+    fixed_validation_params = build_params(
+        cfg, device, torch.float64
+    )
     for parameter in model.parameters():
         parameter.requires_grad_(False)
     if not isinstance(model.base.output, torch.nn.Linear):
@@ -427,6 +473,16 @@ def main() -> None:
         psi = args.report_scale_factor * psi_all[interior]
         dot = args.report_scale_factor * quantities["dot_psi"][interior]
         ddot = args.report_scale_factor * quantities["ddot_psi"][interior]
+        cf_candidate_all = quantities["u_state"]
+        cf = (controls - cf_candidate_all)[interior]
+        cf_candidate = cf_candidate_all[interior]
+        cf_B = quantities["B"][interior]
+        cf_in_box = (
+            (cf_candidate >= 0.0) & (cf_candidate <= dense_cfg.umax)
+        )
+        cf_B_valid = cf_B.abs() >= args.b_min
+        cf_B_nonpositive = cf_B <= 0.0
+        cf_admissible = cf_in_box & cf_B_valid & cf_B_nonpositive
         projected = controls - torch.clamp(
             controls - psi_all, 0.0, dense_cfg.umax
         )
@@ -438,15 +494,28 @@ def main() -> None:
             "psi": psi,
             "dot": dot,
             "ddot": ddot,
+            "cf": cf,
+            "cf_candidate": cf_candidate,
+            "cf_B": cf_B,
+            "cf_in_box": cf_in_box,
+            "cf_B_valid": cf_B_valid,
+            "cf_B_nonpositive": cf_B_nonpositive,
+            "cf_admissible": cf_admissible,
             "boundary": boundary,
         }
 
-    component_specs = (
-        ("psi", args.w0, args.psi_scale),
-        ("dot", args.w1, args.dot_scale),
-        ("ddot", args.w2, args.ddot_scale),
-        ("boundary", args.boundary_weight, args.boundary_scale),
-    )
+    if args.singular_loss == "derivative":
+        component_specs = (
+            ("psi", args.w0, args.psi_scale),
+            ("dot", args.w1, args.dot_scale),
+            ("ddot", args.w2, args.ddot_scale),
+            ("boundary", args.boundary_weight, args.boundary_scale),
+        )
+    else:
+        component_specs = (
+            ("cf", args.cf_weight, args.cf_scale),
+            ("boundary", args.boundary_weight, args.boundary_scale),
+        )
 
     def residual_vector(theta: torch.Tensor) -> torch.Tensor:
         pack = raw_pack(theta)
@@ -466,12 +535,32 @@ def main() -> None:
             pack = raw_pack(theta)
             values = {
                 f"{name}_rms": float(pack[name].square().mean().sqrt().cpu())
-                for name in ("psi", "dot", "ddot", "boundary")
+                for name in ("psi", "dot", "ddot", "cf", "boundary")
             }
             values.update(
                 {
                     f"{name}_linf": float(pack[name].abs().max().cpu())
-                    for name in ("psi", "dot", "ddot", "boundary")
+                    for name in ("psi", "dot", "ddot", "cf", "boundary")
+                }
+            )
+            values.update(
+                {
+                    "cf_candidate_min": float(pack["cf_candidate"].min().cpu()),
+                    "cf_candidate_max": float(pack["cf_candidate"].max().cpu()),
+                    "cf_B_min": float(pack["cf_B"].min().cpu()),
+                    "cf_B_max": float(pack["cf_B"].max().cpu()),
+                    "cf_in_box_fraction": float(
+                        pack["cf_in_box"].to(torch.float64).mean().cpu()
+                    ),
+                    "cf_B_valid_fraction": float(
+                        pack["cf_B_valid"].to(torch.float64).mean().cpu()
+                    ),
+                    "cf_B_nonpositive_fraction": float(
+                        pack["cf_B_nonpositive"].to(torch.float64).mean().cpu()
+                    ),
+                    "cf_admissible_fraction": float(
+                        pack["cf_admissible"].to(torch.float64).mean().cpu()
+                    ),
                 }
             )
             values["control_drift_rms"] = float(
@@ -541,7 +630,11 @@ def main() -> None:
             "method": (
                 "direct-initialized Transformer followed by "
                 f"{args.trainable_scope} damped Gauss-Newton refinement "
-                "of scalar PMP/KKT residuals"
+                + (
+                    "of scalar PMP/KKT residuals"
+                    if args.singular_loss == "derivative"
+                    else "of the state-only closed-form singular target"
+                )
             ),
             "selected_lm_iteration": iteration,
             "scalar_dense_grid_metrics": reported_metrics,
@@ -557,13 +650,26 @@ def main() -> None:
     started = time.perf_counter()
 
     def record(iteration: int, accepted: bool, objective: float) -> None:
+        # The residual path evaluates a detached parameter vector.  Synchronize
+        # the live Transformer before applying the common fixed validator.
+        set_head(theta)
+        fixed_validation = evaluate_fixed_nominal_der(
+            fixed_validation_model,
+            cfg,
+            fixed_validation_params,
+            state_mode="w_zero",
+        )
         current_metrics = metrics(theta)
         row: dict[str, Any] = {
+            "phase": "time_only_optimality_gap_refinement",
+            "phase_step": iteration,
+            "optimizer_step": iteration,
             "iteration": iteration,
             "accepted": accepted,
             "weighted_objective": objective,
             "damping": damping,
             "elapsed_seconds": time.perf_counter() - started,
+            **fixed_validation,
             **current_metrics,
         }
         history.append(row)
@@ -715,7 +821,14 @@ def main() -> None:
         if not accepted and damping >= args.maximum_damping:
             break
 
-    selected = min(candidates, key=lambda item: item[:2])
+    if args.selection_metric == "training-objective":
+        selected_iteration = min(
+            range(len(history)),
+            key=lambda index: float(history[index]["weighted_objective"]),
+        )
+        selected = candidates[selected_iteration]
+    else:
+        selected = min(candidates, key=lambda item: item[:2])
     selected_theta = selected[2].to(device=device, dtype=torch.float64)
     selected_iteration = selected[3]
     selected_metrics = selected[4]
@@ -751,6 +864,26 @@ def main() -> None:
         starting_u=starting_dense.detach().cpu().numpy(),
     )
     write_csv(out_dir / "history.csv", history)
+    write_csv(
+        out_dir / "fixed_validation_opt_gap.csv",
+        [
+            {
+                key: row[key]
+                for key in (
+                    "phase",
+                    "phase_step",
+                    "optimizer_step",
+                    "iteration",
+                    "fixed_nominal_lopt_der",
+                    "fixed_nominal_singular_component",
+                    "fixed_nominal_boundary_component",
+                    "fixed_nominal_invalid_component",
+                    "fixed_nominal_q_mean",
+                )
+            }
+            for row in history
+        ],
+    )
     summary = {
         "status": "completed",
         "start_checkpoint": str(start_checkpoint),
@@ -766,6 +899,7 @@ def main() -> None:
         "construction_error": construction_error,
         "wall_seconds": time.perf_counter() - started,
         "training": vars(args),
+        "fixed_validation_metric": metric_metadata(),
     }
     (out_dir / "summary.json").write_text(
         json.dumps(summary, indent=2), encoding="utf-8"

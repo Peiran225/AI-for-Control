@@ -59,6 +59,14 @@ while using the common tumor dynamics, objective weights, and evaluator.
 three-case training entry point used to compare the policy classes with the
 same optimizer, update count, minibatch stream, and numerical settings.
 
+## Supplementary controlled experiments
+
+The controlled loss ablations, near-equal-objective structure study, and
+fresh per-state Direct timing experiment are documented in
+[`results/supplementary_20260801/README.md`](results/supplementary_20260801/README.md).
+That directory contains the lightweight CSV summaries; the corresponding
+training, evaluation, and timing entry points are under `scripts/`.
+
 ## Environment and checks
 
 ```bash
