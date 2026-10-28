@@ -1,0 +1,9 @@
+method,state,C_T,C_N,C_u,J,reconstruction_error,source
+Direct,NOM,322.3890372786868,42604.24140093257,81940.24690277733,124866.87734098856,2.9103830456733704e-11,/Users/muhanzhang/Downloads/AI-for-Control/repo/outputs/new_objective_alpha1_grid_20260721_v2/a1_b40_g8000/direct_nominal/n800_strict_final/scale_1_direct_solution.npz
+Direct,S20,322.28246692833335,42773.22282490165,80827.61655249729,123923.12184432714,1.4551915228366852e-10,/Users/muhanzhang/Downloads/AI-for-Control/repo/output/r020_state_specific_direct_20260729/final/solution.npz
+Time,NOM,320.92305337174923,42485.45471624111,82060.80305159478,124867.18082120821,5.675246939063072e-10,/Users/muhanzhang/Downloads/AI-for-Control/repo/output/final_paper_recompute_20260727_clean_v2/tables/time_only_solution_n800.npz
+Time,S20,316.61720426571804,41563.19171846483,82060.80305159478,123940.61197432615,8.294591680169106e-10,/Users/muhanzhang/Downloads/AI-for-Control/repo/output/final_paper_recompute_20260727_clean_v2/tables/time_only_solution_n800.npz
+CF,NOM,320.9768328419414,42491.23953971083,82054.94234154314,124867.15871409616,2.473825588822365e-10,/Users/muhanzhang/Downloads/AI-for-Control/repo/tmp/table1_checkpoints_20260728/cf_final.pt
+CF,S20,320.16248606981515,42593.26968460363,81010.30364364393,123923.73581431716,2.0372681319713593e-10,/Users/muhanzhang/Downloads/AI-for-Control/repo/tmp/table1_checkpoints_20260728/cf_final.pt
+DER,NOM,320.977649122962,42491.10271434476,82055.07835420192,124867.15871766974,1.0186340659856796e-10,/Users/muhanzhang/Downloads/AI-for-Control/repo/tmp/table1_checkpoints_20260728/der_final.pt
+DER,S20,320.16202429682033,42593.41287629108,81010.16047543327,123923.73537602116,0.0,/Users/muhanzhang/Downloads/AI-for-Control/repo/tmp/table1_checkpoints_20260728/der_final.pt

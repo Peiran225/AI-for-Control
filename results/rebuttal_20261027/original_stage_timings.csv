@@ -1,0 +1,9 @@
+name,method,budget,multiplier,gpu,seconds,returncode,status,source,replaces_submitted_checkpoint
+cf_m2_outer2,cf,2,2,6,236.10785583080724,0,completed,"new timing measurement, original stage input and recorded configuration; not historical wall time",False
+cf_m2_outer6,cf,6,2,7,627.0442199511454,0,completed,"new timing measurement, original stage input and recorded configuration; not historical wall time",False
+cf_m4_outer6,cf,6,4,5,1257.7046672878787,0,completed,"new timing measurement, original stage input and recorded configuration; not historical wall time",False
+cf_m8_outer4,cf,4,8,7,1533.7514655529521,0,completed,"new timing measurement, original stage input and recorded configuration; not historical wall time",False
+der_m2_outer2,der,2,2,5,236.81569925835356,0,completed,"new timing measurement, original stage input and recorded configuration; not historical wall time",False
+der_m2_outer8,der,8,2,6,798.4111543488689,0,completed,"new timing measurement, original stage input and recorded configuration; not historical wall time",False
+der_m4_outer10,der,10,4,6,1962.0696143279783,0,completed,"new timing measurement, original stage input and recorded configuration; not historical wall time",False
+der_m8_outer6,der,6,8,5,2538.8382671331055,0,completed,"new timing measurement, original stage input and recorded configuration; not historical wall time",False

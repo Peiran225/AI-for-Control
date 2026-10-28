@@ -1,0 +1,110 @@
+{
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 4211,
+      "sha256": "51e73f12f75cb52d6aa3404bdcd2beb1d33dcbff3f898ec461a59223ba0d9546"
+    },
+    {
+      "path": "code/evaluate_frozen_s4.py",
+      "bytes": 7157,
+      "sha256": "1c5b8576b167d89ee2e87def31186070b2126ffa5b6ac11886869fcb4f7b34bf"
+    },
+    {
+      "path": "code/evaluate_new_checkpoints.py",
+      "bytes": 4006,
+      "sha256": "f87c691cadfba9f7ea8b2c08f428c0c1361e9911f287ab33473185efd3ed7623"
+    },
+    {
+      "path": "code/fixed_support_cache.py",
+      "bytes": 3113,
+      "sha256": "fd32ab9a89dd8637d7043bd756bb2c85a0fe20d6516432011c4048c96920686a"
+    },
+    {
+      "path": "code/inspect_lineage.py",
+      "bytes": 3323,
+      "sha256": "9c25ee615d4cb9e1941dfa6a23b2767c01951e26c866adb7732d9d0d938a0b49"
+    },
+    {
+      "path": "code/measure_original_feedback_times.py",
+      "bytes": 3904,
+      "sha256": "c66fe82258c451a42761dfa9d094761c0be5cdfba0767fe2059029f49b96e1a7"
+    },
+    {
+      "path": "code/objective_components.py",
+      "bytes": 3005,
+      "sha256": "216ebc68d13e2f3612a0f9d70777a2f90f7790440510e3dbc858a2bc9c04ea29"
+    },
+    {
+      "path": "code/prepare_exact_caches.py",
+      "bytes": 2693,
+      "sha256": "863e7131a46fddb78178a92f24f1ba842bdafbdd1b2186773d0676c91c630976"
+    },
+    {
+      "path": "code/run_frozen_jobs.py",
+      "bytes": 2833,
+      "sha256": "4b74e8f8000a9a6eb8ca18bbe8639617b99f4e92fa606d067396f85b7922123a"
+    },
+    {
+      "path": "code/run_noncf.py",
+      "bytes": 7768,
+      "sha256": "19046e710a799e067095b1cae222a221a4bcfdb1dedb9f65e23a8dd2203fe663"
+    },
+    {
+      "path": "code/supervised_initialization.py",
+      "bytes": 2995,
+      "sha256": "8b21c6ee0c4e932e0de7209fbd94bcf5e9feae2d3c458ed3ebfb9e04df17bf58"
+    },
+    {
+      "path": "fixed_policy_metrics.csv",
+      "bytes": 4329,
+      "sha256": "952a85dcbad226eb070a126f130a62a9ab392fdc22d8e6be795c3b69bd52f183"
+    },
+    {
+      "path": "heldout_initial_states.csv",
+      "bytes": 49716,
+      "sha256": "0c6abdfd711a5b3ebd80fb6d152b3dab6120411d83a0ea6fe18d8f1fd5ed8f72"
+    },
+    {
+      "path": "heldout_per_state.csv",
+      "bytes": 31901,
+      "sha256": "4aaba17be2f718cac123ae8db797edabef02c49a192a877aab74f8726ad7e09f"
+    },
+    {
+      "path": "noncf_before_after.csv",
+      "bytes": 5159,
+      "sha256": "3feafe604212102f8a1d50c9c265fc202eda5ef99c173a82f66a46ae6051da93"
+    },
+    {
+      "path": "objective_components.csv",
+      "bytes": 1792,
+      "sha256": "0fcd459c3e3e299e899dec70e8f53056c048d9dfb4d22ddd282e1cddea1e60d0"
+    },
+    {
+      "path": "original_seed_metrics.csv",
+      "bytes": 12238,
+      "sha256": "17e58c6b8e1d255452361eb773470f75a2e4d1576faf06afb6a4aaeb01615719"
+    },
+    {
+      "path": "original_stage_timings.csv",
+      "bytes": 1386,
+      "sha256": "deae02aee36c8a7b2a173eaec7dacba4a923638502cb38d290fdd15fc5c535e3"
+    },
+    {
+      "path": "query_cache_checks.json",
+      "bytes": 4963,
+      "sha256": "f7b6bbc1a60a6ebbcda24e2a7351b72bd593dee59a1783d00e57acd441d232f2"
+    },
+    {
+      "path": "time_exact_bound_check.json",
+      "bytes": 583,
+      "sha256": "92112cd185a32fd548c07eb418cfd6c7db2934eb75fecf4073eb1a0e4ceb4c32"
+    }
+  ],
+  "excludes": [
+    "review documents",
+    "filled private form",
+    "large checkpoints",
+    "dense trajectory arrays"
+  ]
+}

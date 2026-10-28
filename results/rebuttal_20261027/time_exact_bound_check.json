@@ -1,0 +1,9 @@
+{
+  "rule_source": "scripts/train_teacher_free_resolution_curriculum.py:evaluate; exact_upper_bound_count and exact_lower_bound_count, also stored in the locked Time checkpoint metrics",
+  "scope": "Time only; no assumed feedback-bound tolerance",
+  "evaluation": "full S4 25,601-node trajectory; same arrays as residual statistics",
+  "rows": [
+    {"state": "NOM", "boundary_tolerance": 0, "lower_count": 0, "upper_count": 1201, "v0": null, "v3": 0.0},
+    {"state": "S20", "boundary_tolerance": 0, "lower_count": 0, "upper_count": 1201, "v0": null, "v3": 205.2411669452349}
+  ]
+}

@@ -1,0 +1,74 @@
+[
+  {
+    "checkpoint": "/home/mzhang/AI-for-Control-direct-guided-20260727/outputs/server_direct_guided_20260727/n800_clean_lm_20260727/main_m8_equal6/selected_checkpoint.pt",
+    "sha256": "e1223fcfd736940f5f7a0137e9e530117b412d8f79dc367ea838a4465eb982f9",
+    "time_fingerprint": "0a949bc4b367b09701019440608a34804f9f41fffa436e2867a03f4c1e5eab72",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/time_base4_fb31_locked.npz",
+    "cached_vs_original_max_abs": 1.9539925233402755e-14,
+    "cached_vs_support_max_abs": 4.263256414560601e-14
+  },
+  {
+    "checkpoint": "/home/mzhang/AI-for-Control-direct-guided-20260727/outputs/feedback_direct_refinement_20260727/cf_v8_continuous_frombestm4_cfw0p01_scalar1_w2x4_trust0_m8_cont4_inner2_p2_noref_20260727a/best_feedback_section5.pt",
+    "sha256": "a5beb49ceb0452e5a5fa778587ad78f21d695fb171c8d4c62dae98140cb245a7",
+    "time_fingerprint": "0a949bc4b367b09701019440608a34804f9f41fffa436e2867a03f4c1e5eab72",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/cf_base4_fb31_locked.npz",
+    "cached_vs_original_max_abs": 1.9539925233402755e-14,
+    "cached_vs_support_max_abs": 4.263256414560601e-14
+  },
+  {
+    "checkpoint": "/home/mzhang/AI-for-Control-direct-guided-20260727/outputs/feedback_continuous_policy_refinement_20260727/der_v8_m8_from_m4_w114_p2_noref_20260727a/best_feedback_section5.pt",
+    "sha256": "20922cdd43e7897140909827f53a2bd458f2ad07e4d5252b4282d721bd209556",
+    "time_fingerprint": "0a949bc4b367b09701019440608a34804f9f41fffa436e2867a03f4c1e5eab72",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/der_base4_fb31_locked.npz",
+    "cached_vs_original_max_abs": 1.9539925233402755e-14,
+    "cached_vs_support_max_abs": 4.263256414560601e-14
+  },
+  {
+    "checkpoint": "/home/mzhang/table1_final_training_seeds_20260728/replica_base2_fb32/time/lm_final_equal6/selected_checkpoint.pt",
+    "sha256": "ec8195e3de392d68a6a3277b98315536b99b700cdf5eaf28da8f1ba38361e104",
+    "time_fingerprint": "4b2dcdd448ef76d53c1a0269e7aa1b067659dc35f476803d617963369a38416c",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/time_base2_fb32.npz",
+    "cached_vs_original_max_abs": 5.329070518200751e-15,
+    "cached_vs_support_max_abs": 6.850076061937216e-14
+  },
+  {
+    "checkpoint": "/home/mzhang/table1_final_training_seeds_20260728/replica_base2_fb32/feedback/cf_final_m8/best_feedback_section5.pt",
+    "sha256": "33088c8e2364bb701cc5a0ade1d031463d0503af5045ca2db0342ae4e1548723",
+    "time_fingerprint": "4b2dcdd448ef76d53c1a0269e7aa1b067659dc35f476803d617963369a38416c",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/cf_base2_fb32.npz",
+    "cached_vs_original_max_abs": 5.329070518200751e-15,
+    "cached_vs_support_max_abs": 6.850076061937216e-14
+  },
+  {
+    "checkpoint": "/home/mzhang/table1_final_training_seeds_20260728/replica_base2_fb32/feedback/der_final_m8/best_feedback_section5.pt",
+    "sha256": "fe0cd3fd09198ca42d61d4657d8274fcddf1b325d80d8ddace0aeddc8045800c",
+    "time_fingerprint": "4b2dcdd448ef76d53c1a0269e7aa1b067659dc35f476803d617963369a38416c",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/der_base2_fb32.npz",
+    "cached_vs_original_max_abs": 5.329070518200751e-15,
+    "cached_vs_support_max_abs": 6.850076061937216e-14
+  },
+  {
+    "checkpoint": "/home/mzhang/table1_final_training_seeds_20260728/replica_base3_fb33/time/lm_final_equal6/selected_checkpoint.pt",
+    "sha256": "4ac9988fc68d8bd02b1678954004bec8b9c03a73428392dbfdff545153bb4737",
+    "time_fingerprint": "a683ee76d25846f0141fbc06d8e037166bf9b189079c37841205278bcdfd852d",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/time_base3_fb33.npz",
+    "cached_vs_original_max_abs": 7.105427357601002e-15,
+    "cached_vs_support_max_abs": 3.597122599785507e-14
+  },
+  {
+    "checkpoint": "/home/mzhang/table1_final_training_seeds_20260728/replica_base3_fb33/feedback/cf_final_m8/best_feedback_section5.pt",
+    "sha256": "817873c4a14ef1b06e7aa1bdc661a426f4b0ce572208f5d9c1eae37f7b730056",
+    "time_fingerprint": "a683ee76d25846f0141fbc06d8e037166bf9b189079c37841205278bcdfd852d",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/cf_base3_fb33.npz",
+    "cached_vs_original_max_abs": 7.105427357601002e-15,
+    "cached_vs_support_max_abs": 3.597122599785507e-14
+  },
+  {
+    "checkpoint": "/home/mzhang/table1_final_training_seeds_20260728/replica_base3_fb33/feedback/der_final_m8/best_feedback_section5.pt",
+    "sha256": "7d178d1dce9b7b4b3188bdedc8853b11109ee9da904004917480ce0f140af710",
+    "time_fingerprint": "a683ee76d25846f0141fbc06d8e037166bf9b189079c37841205278bcdfd852d",
+    "cache": "/home/mzhang/pmp_rebuttal_sheet_20261027/inputs/exact_caches/der_base3_fb33.npz",
+    "cached_vs_original_max_abs": 7.105427357601002e-15,
+    "cached_vs_support_max_abs": 3.597122599785507e-14
+  }
+]
