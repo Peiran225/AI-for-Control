@@ -76,7 +76,11 @@ See [`pilot/README.md`](pilot/README.md) for the full setup and numbers. Summary
   - inside the 4 relevant dimensions, 2 high-variance but stable modes versus 2 low-variance, *unstable* modes, which trap the level-2 abstraction.
   
   The hierarchy is: L1 latent model (d=4, ridge LS on real data); L2 stride-4 model fit to L1 imagination plus a real-data cost model; L3 LQR in the abstract space; outer loop over the abstraction (E, P).
-- **Result.** RESULTS_PLACEHOLDER
+- **Results** (3 seeds; real closed-loop cost, median; optimum 0.76).
+  - **Decoupled hierarchies fail completely.** PCA gives 3.2e4 and RRR gives 2.7e4, compared with 3.1e4 for no control.
+  - **MLO over both levels works** given an accurate outer gradient: 1.26–1.45. With the black-box zeroth-order outer gradient at a large real budget, it reaches 1.49, beating model-free search on the gain at the same budget (1.99).
+  - **Optimizing only the top level never recovers** (2.2e4). Optimizing only the bottom level is slower and less reliable, so *multi*-level beats bilevel.
+  - **Negative result.** At small real budgets, the zeroth-order outer gradient makes MLO unstable, while model-free search degrades gracefully. The outer-gradient estimator, not the nesting, is the bottleneck. The paper therefore needs a low-variance real-data outer gradient (a critic or value-equivalence residual), and must not yet claim sample efficiency.
 
 ## 4. Experimental plan for the paper
 
