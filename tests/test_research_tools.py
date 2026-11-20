@@ -195,3 +195,77 @@ def test_dropped_candidate_excluded_from_ranking(project):
     del data["candidates"][-1]["drop_reason"]
     (project / "06_candidates.json").write_text(json.dumps(data))
     assert any("drop_reason" in e for e in validate(project).errors)
+
+
+# ------------------------------------------------------------- scholar_fetch
+import datetime as _dt  # noqa: E402
+
+from scholar_fetch import (  # noqa: E402
+    finalise, is_blocked, parse_arxiv_feed, parse_bibtex, parse_profile_html, user_id_from_url,
+)
+
+_ROW = ('<tr class="gsc_a_tr"><td class="gsc_a_t"><a href="/citations?view_op=view_citation&amp;hl=en'
+        '&amp;user=U1&amp;citation_for_view=U1:abc" class="gsc_a_at">{title}</a>'
+        '<div class="gs_gray">A Author, B Author</div><div class="gs_gray">{venue}'
+        '<span class="gs_oph">, {year}</span></div></td><td class="gsc_a_c">'
+        '<a href="" class="gsc_a_ac gs_ibl">{cites}</a></td><td class="gsc_a_y">'
+        '<span class="gsc_a_h gsc_a_hc gs_ibl">{year}</span></td></tr>')
+
+
+def _profile_page(rows, more_disabled=True):
+    btn = '<button id="gsc_bpf_more" {} class="gs_btnPD">'.format("disabled" if more_disabled else "")
+    return f'<div id="gsc_prf_in">Jane Doe</div><table>{"".join(rows)}</table>{btn}'
+
+
+def test_parse_scholar_profile():
+    page = _profile_page([
+        _ROW.format(title="Bilevel Things &amp; More", venue="arXiv preprint arXiv:2610.05290", year="2026", cites="3"),
+        _ROW.format(title="Old Paper", venue="ICML", year="2019", cites=""),
+        _ROW.format(title="No Year", venue="", year="", cites=""),
+    ])
+    papers, name, more = parse_profile_html(page)
+    assert name == "Jane Doe" and not more
+    assert [p["title"] for p in papers] == ["Bilevel Things & More", "Old Paper", "No Year"]
+    assert papers[0]["authors"] == ["A Author", "B Author"]
+    assert papers[0]["venue"] == "arXiv preprint arXiv:2610.05290"
+    assert papers[0]["year"] == 2026 and papers[0]["citations"] == 3
+    assert papers[0]["scholar_url"].startswith("https://scholar.google.com/citations?view_op=view_citation&hl=en&user=U1")
+    assert papers[1]["citations"] == 0 and papers[2]["year"] is None
+    assert parse_profile_html(_profile_page([], more_disabled=False))[2] is True
+
+
+def test_recent_flag_and_ids():
+    papers = finalise(
+        [{"title": "a", "year": 2022}, {"title": "b", "year": None}, {"title": "c", "year": 2026},
+         {"title": "d", "year": 2024}],
+        recent_years=3, today=_dt.date(2026, 11, 20))
+    assert [(p["id"], p["title"], p["recent"]) for p in papers] == [
+        ("P1", "c", True), ("P2", "d", True), ("P3", "a", False), ("P4", "b", None)]
+
+
+def test_captcha_detection_and_user_id():
+    assert is_blocked('<div id="gs_captcha_ccl">')
+    assert is_blocked("Our systems have detected unusual traffic from your computer")
+    assert not is_blocked(_profile_page([]))
+    assert user_id_from_url("https://scholar.google.com/citations?view_op=list_works&hl=zh-CN&user=SXJ4R24AAAAJ") == "SXJ4R24AAAAJ"
+    with pytest.raises(ValueError):
+        user_id_from_url("https://scholar.google.com/")
+
+
+def test_parse_bibtex_export():
+    bib = ("@article{yu2025fast,\n  title={A Fast {Federated} Method},\n  author={Yu, Peiran and Huang, Heng},\n"
+           "  journal={IEEE TNNLS},\n  year={2025}\n}\n\n@inproceedings{x,\n  title={Second},\n"
+           "  booktitle={NeurIPS},\n  year={2023},\n  author={A, B}\n}\n")
+    papers = parse_bibtex(bib)
+    assert [p["title"] for p in papers] == ["A Fast Federated Method", "Second"]
+    assert papers[0]["authors"] == ["Yu, Peiran", "Huang, Heng"] and papers[0]["year"] == 2025
+    assert papers[1]["venue"] == "NeurIPS"
+
+
+def test_parse_arxiv_feed():
+    xml = ('<feed xmlns="http://www.w3.org/2005/Atom"><entry><id>http://arxiv.org/abs/2610.05290v1</id>'
+           '<published>2026-10-06T00:00:00Z</published><title>Smoothed  Gradient\n Method</title>'
+           '<summary> We study\n bilevel problems. </summary></entry></feed>')
+    [e] = parse_arxiv_feed(xml)
+    assert e == {"title": "Smoothed Gradient Method", "abstract": "We study bilevel problems.",
+                 "url": "https://arxiv.org/abs/2610.05290v1", "year": 2026}

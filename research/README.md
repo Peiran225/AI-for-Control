@@ -4,8 +4,12 @@ A Claude Code–native pipeline that turns a one-sentence idea into ranked resea
 directions, a chosen idea, experiments and a LaTeX paper.
 
 ## Usage (inside Claude Code, from the repository root)
-1. Fill in `research/profile/my_papers.md` with your papers.
-2. `/auto-research profile` builds `research/profile/profile.json`.
+1. Put your Google Scholar link in `research/profile/scholar.json` (`recent_years`: only papers from
+   the last N years are used for relevance scoring). Optional extra notes go in `research/profile/my_papers.md`.
+2. `/auto-research profile` fetches the list (`research/tools/scholar_fetch.py`) and builds
+   `research/profile/profile.json`. If Scholar shows a CAPTCHA, save your profile page as HTML or export
+   BibTeX from Scholar and run `python research/tools/scholar_fetch.py --html <file>` (or `--bibtex <file>`).
+   The cloud environment must allow `scholar.google.com`, `arxiv.org` and `export.arxiv.org`.
 3. `/auto-research new "Are different forms of uncertainty in MDPs equivalent?" --venue neurips`
 4. Answer the three checkpoints (after keywords, after the ranking loop, after the idea).
 5. `/auto-research resume <slug>` continues an interrupted run; `/auto-research status <slug>` shows progress.
@@ -19,6 +23,7 @@ directions, a chosen idea, experiments and a LaTeX paper.
 | `.claude/agents/ar-*.md` | Sub-agents: profiler, keywords, field-scout, lit-search, paper-analyst, assessor, experimenter, writer, reviewer |
 | `research/tools/validate_project.py` | Checks each stage's files, citation integrity (only verified papers) and number provenance (only macros) |
 | `research/tools/rank_stability.py` | Stop rule for the ranking loop (top-3 stable, no novelty shift ≥ 1, at most 4 iterations) |
+| `research/tools/scholar_fetch.py` | Google Scholar profile (or saved HTML / BibTeX export) → `research/profile/scholar_papers.json`, with arXiv abstracts |
 | `research/tools/make_results_macros.py` | `results/summary*.csv` → `09_paper/results_macros.tex` |
 | `research/projects/<slug>/` | One directory per idea; see the layout in `SKILL.md` |
 

@@ -1,12 +1,15 @@
-# My papers (input for /auto-research profile)
+# Profile notes (optional)
 
-<!-- TEMPLATE: replace the example below with your own papers, one "## " section per paper.
-     Only the title is required; a link (arXiv / OpenReview / DOI) lets the profiler fetch the abstract.
-     Delete this comment once filled in. -->
+The paper list now comes from Google Scholar (`research/profile/scholar.json`).
+Use this file only for things Scholar does not know. `ar-profiler` reads it, and what you write
+here overrides what it infers.
 
-## <Paper title>
-- Link: https://arxiv.org/abs/xxxx.xxxxx
-- Venue / year: <e.g. AAAI 2027 (submitted)>
-- One-sentence contribution: <what is new>
-- Reusable code / data: <e.g. this repository: tumor_problem.py, train_paper_pmp_kkt.py>
-- Notes: <optional: methods you are strongest at, what you would like to do next>
+## Reusable code / data
+- AI-for-Control (this repository): tumor_problem.py, train_paper_pmp_kkt.py, scripts/ — Transformer
+  optimal-control policies trained with PMP/KKT residuals.
+
+## Papers not on Scholar yet (title, link, venue/status, one-sentence contribution)
+- 
+
+## Directions to emphasise or avoid
+- 

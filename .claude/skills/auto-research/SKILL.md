@@ -12,15 +12,21 @@ tools, keep `state.json` up to date, and stop at the three human checkpoints.
 
 Paths (relative to the repository root):
 - Skill files: `.claude/skills/auto-research/` (`rubrics/scoring.md`, `rubrics/venues.md`, `templates/`).
-- Profile: `research/profile/my_papers.md` (user-written) → `research/profile/profile.json`.
+- Profile: `research/profile/scholar.json` (Google Scholar link, `recent_years`) →
+  `scholar_papers.json` (via `research/tools/scholar_fetch.py`) → `profile.json`; optional notes in
+  `research/profile/my_papers.md`.
 - Projects: `research/projects/<slug>/`.
 - Tools: `research/tools/validate_project.py`, `rank_stability.py`, `make_results_macros.py`.
 
 ## Commands
 
 ### `profile`
-Run `ar-profiler`. If `research/profile/my_papers.md` still contains only the template
-placeholder, stop and ask the user to fill it in first.
+If `research/profile/scholar.json` has no `scholar_url`, ask the user for their Google Scholar link
+and write it there. Then run `ar-profiler`, which calls `research/tools/scholar_fetch.py`. If Scholar
+answers with a CAPTCHA (exit code 2), relay the fallback: the user saves the profile page as HTML
+(`--html`) or exports BibTeX from Scholar (`--bibtex`), puts the file in `research/profile/`, and you
+rerun the tool with that flag. Show the user the paper count, the recent papers and the core
+expertise, and ask whether to correct anything (corrections go into `my_papers.md`).
 
 ### `new "<idea>" --venue <v> [--metric <m>]`
 1. Require `research/profile/profile.json`; if missing, run `profile` first.

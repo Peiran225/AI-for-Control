@@ -1,22 +1,53 @@
 {
   "built": "2026-11-20",
+  "source": "google_scholar",
+  "scholar_url": "https://scholar.google.com/citations?user=XXXXXXXXXXXX",
+  "recent_years": 3,
   "papers": [
     {
       "id": "P1",
-      "title": "<title>",
+      "title": "<recent paper title>",
       "url": "https://arxiv.org/abs/xxxx.xxxxx",
       "year": 2026,
       "venue": "<venue>",
       "problem": "Learning optimal control policies with Transformers trained on PMP/KKT residuals.",
-      "methods": ["Pontryagin maximum principle", "KKT residual losses", "Transformer policies"],
-      "terms": ["optimal control", "singular arcs", "feedback policy", "tumor growth model"],
+      "methods": [
+        "Pontryagin maximum principle",
+        "KKT residual losses",
+        "Transformer policies"
+      ],
+      "terms": [
+        "optimal control",
+        "singular arcs",
+        "feedback policy",
+        "tumor growth model"
+      ],
       "platform": "ODE simulation (tumor model), CPU",
-      "assets": ["AI-for-Control repo: tumor_problem.py, train_paper_pmp_kkt.py"]
+      "assets": [
+        "AI-for-Control repo: tumor_problem.py, train_paper_pmp_kkt.py"
+      ],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&user=...",
+      "fetched": true
+    }
+  ],
+  "older_papers": [
+    {
+      "id": "P12",
+      "title": "<older paper title>",
+      "year": 2021,
+      "venue": "<venue>"
     }
   ],
   "expertise": {
-    "core": ["optimal control theory (PMP, KKT)", "..."],
-    "secondary": ["..."],
-    "assets": ["..."]
+    "core": [
+      "optimal control theory (PMP, KKT)",
+      "..."
+    ],
+    "secondary": [
+      "..."
+    ],
+    "assets": [
+      "..."
+    ]
   }
 }
