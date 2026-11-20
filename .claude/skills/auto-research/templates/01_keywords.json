@@ -1,0 +1,25 @@
+{
+  "idea": "Are different forms of uncertainty in MDPs equivalent?",
+  "keywords": [
+    {
+      "id": "K1",
+      "term": "robust MDP / uncertainty sets",
+      "relevance": 4,
+      "relevance_evidence": ["P1"],
+      "relevance_reason": "P1 trains feedback policies under parameter perturbations of the dynamics.",
+      "importance": 5,
+      "importance_reason": "One of the uncertainty forms being compared.",
+      "needs_background": false
+    },
+    {
+      "id": "K2",
+      "term": "Bayesian / epistemic uncertainty (BAMDP)",
+      "relevance": 2,
+      "relevance_evidence": [],
+      "relevance_reason": "Never used Bayesian RL in a paper.",
+      "importance": 4,
+      "importance_reason": "Needed for the second uncertainty form in the main theorem.",
+      "needs_background": true
+    }
+  ]
+}

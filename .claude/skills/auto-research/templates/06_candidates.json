@@ -1,0 +1,21 @@
+{
+  "iteration": 1,
+  "weights": {"novelty": 0.4, "impact": 0.35, "feasibility": 0.25},
+  "candidates": [
+    {
+      "id": "D1",
+      "title": "Exact equivalence of s-rectangular robust and risk-averse MDPs",
+      "description": "Characterise when an s-rectangular uncertainty set induces the same optimal policy as a coherent risk measure on the transition kernel.",
+      "targets": ["Q1"],
+      "prior_art": ["p001", "p004"],
+      "novelty": 3,
+      "novelty_reason": "p004 shows the sa-rectangular case; s-rectangular is open as far as searched.",
+      "difficulty": 3,
+      "difficulty_reason": "New theorem with a duality proof; experiments are tabular (minutes on CPU).",
+      "impact": 4,
+      "impact_reason": "Tells practitioners when robust and risk-averse training are interchangeable (Q1).",
+      "score": 3.35
+    }
+  ],
+  "ranking": ["D1"]
+}

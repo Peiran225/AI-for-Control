@@ -1,0 +1,22 @@
+{
+  "built": "2026-11-20",
+  "papers": [
+    {
+      "id": "P1",
+      "title": "<title>",
+      "url": "https://arxiv.org/abs/xxxx.xxxxx",
+      "year": 2026,
+      "venue": "<venue>",
+      "problem": "Learning optimal control policies with Transformers trained on PMP/KKT residuals.",
+      "methods": ["Pontryagin maximum principle", "KKT residual losses", "Transformer policies"],
+      "terms": ["optimal control", "singular arcs", "feedback policy", "tumor growth model"],
+      "platform": "ODE simulation (tumor model), CPU",
+      "assets": ["AI-for-Control repo: tumor_problem.py, train_paper_pmp_kkt.py"]
+    }
+  ],
+  "expertise": {
+    "core": ["optimal control theory (PMP, KKT)", "..."],
+    "secondary": ["..."],
+    "assets": ["..."]
+  }
+}

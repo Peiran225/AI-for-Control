@@ -1,0 +1,16 @@
+{
+  "slug": "mdp-uncertainty-equivalence",
+  "idea": "Are different forms of uncertainty in MDPs equivalent?",
+  "venue": "neurips",
+  "metric": null,
+  "stage": "keywords",
+  "completed": ["input"],
+  "checkpoints": {
+    "A": null,
+    "B": null,
+    "C": null
+  },
+  "ranking_history": [],
+  "review_rounds": 0,
+  "notes": []
+}
