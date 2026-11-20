@@ -1,0 +1,451 @@
+{
+  "built": "2026-11-20",
+  "source": "google_scholar",
+  "scholar_url": "https://scholar.google.com/citations?user=SXJ4R24AAAAJ&hl=en",
+  "recent_years": 3,
+  "papers": [
+    {
+      "id": "P1",
+      "title": "Smoothed Gradient Method for Nonconvex Federated Stochastic Bilevel Optimization",
+      "url": "https://arxiv.org/abs/2610.05290",
+      "year": 2026,
+      "venue": "arXiv preprint arXiv:2610.05290",
+      "problem": "Solving nonconvex federated stochastic bilevel problems with first-order methods that need no strongly convex lower-level loss, use decoupled upper/lower learning rates, and depend less on the condition number.",
+      "methods": [
+        "stochastic doubly smoothed gradient method",
+        "first-order (Hessian/Jacobian-free) bilevel optimization",
+        "federated local updates with communication rounds",
+        "convergence and communication complexity analysis"
+      ],
+      "terms": [
+        "federated bilevel optimization",
+        "stochastic bilevel optimization",
+        "nonconvex optimization",
+        "first-order bilevel method",
+        "smoothed gradient",
+        "condition number dependence",
+        "communication complexity",
+        "decoupled learning rates"
+      ],
+      "platform": "Federated learning experiments; datasets and compute not stated in the abstract",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:8k81kl-MbHgC",
+      "fetched": true
+    },
+    {
+      "id": "P2",
+      "title": "Bilevel zofo: Efficient llm fine-tuning and meta-training",
+      "url": "https://arxiv.org/abs/2502.03604",
+      "year": 2026,
+      "venue": "Advances in Neural Information Processing Systems 38 (NeurIPS 2025)",
+      "problem": "Fine-tuning and meta-training LLMs efficiently while reducing sensitivity to hard prompts, by combining zeroth-order full-model updates with first-order PEFT in a bilevel framework.",
+      "methods": [
+        "bilevel optimization (full LLM upper level, PEFT lower level)",
+        "zeroth-order gradient estimation",
+        "parameter-efficient fine-tuning (LoRA)",
+        "penalty-based minimax reformulation",
+        "meta-training"
+      ],
+      "terms": [
+        "LLM fine-tuning",
+        "zeroth-order optimization",
+        "MeZO",
+        "parameter-efficient fine-tuning",
+        "LoRA",
+        "bilevel optimization",
+        "meta-learning",
+        "hard prompt sensitivity"
+      ],
+      "platform": "LLMs (e.g., OPT-1.3B) on SST-2 and COPA; GPU",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:UebtZRa9Y70C",
+      "fetched": true,
+      "fetched_via": "arXiv API (export.arxiv.org), exact title match"
+    },
+    {
+      "id": "P3",
+      "title": "Cost-aware contrastive routing for llms",
+      "url": "https://arxiv.org/abs/2508.12491",
+      "year": 2026,
+      "venue": "Advances in Neural Information Processing Systems 38 (NeurIPS 2025)",
+      "problem": "Routing each prompt to the cheapest accurate LLM in a changing pool of open-source models and black-box APIs without costly profiling or trial and error.",
+      "methods": [
+        "Cost-Spectrum Contrastive Routing (CSCR)",
+        "contrastive encoder for a shared prompt-model embedding space",
+        "logit-footprint descriptors for open-source models",
+        "perplexity fingerprints for black-box APIs",
+        "cost-aware contrastive loss with adaptive cost bands"
+      ],
+      "terms": [
+        "LLM routing",
+        "model selection",
+        "cost-aware inference",
+        "contrastive learning",
+        "embedding-based router",
+        "black-box LLM APIs",
+        "accuracy-cost trade-off",
+        "AUDC"
+      ],
+      "platform": "Pools of open-source LLMs and black-box LLM APIs; GPU",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:LkGwnXOMwfcC",
+      "fetched": true,
+      "fetched_via": "arXiv API (export.arxiv.org), exact title match"
+    },
+    {
+      "id": "P4",
+      "title": "New Hybrid Fine-Tuning Paradigm for LLMs: Algorithm Design and Convergence Analysis Framework",
+      "url": "https://arxiv.org/abs/2604.09940",
+      "year": 2026,
+      "venue": "The Fourteenth International Conference on Learning Representations (ICLR) 2026",
+      "problem": "Jointly fine-tuning a full LLM and its PEFT modules with mixed zeroth-/first-order updates, with convergence guarantees under a hybrid generalized-smoothness condition.",
+      "methods": [
+        "hybrid zeroth-order / first-order optimization",
+        "prompt tuning (PEFT) combined with full fine-tuning",
+        "hybrid generalized-smoothness analysis",
+        "random-reshuffling SGD with multiple learning rates"
+      ],
+      "terms": [
+        "LLM fine-tuning",
+        "parameter-efficient fine-tuning",
+        "prompt tuning",
+        "zeroth-order optimization",
+        "generalized smoothness",
+        "relaxed smoothness",
+        "random reshuffling",
+        "multiple learning rates",
+        "convergence analysis"
+      ],
+      "platform": "LLMs across several downstream tasks and model architectures; GPU",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:hqOjcs7Dif8C",
+      "fetched": true,
+      "fetched_via": "arXiv API (export.arxiv.org), exact title match"
+    },
+    {
+      "id": "P5",
+      "title": "Provably Mitigating Corruption, Overoptimization, and Verbosity Simultaneously in Offline and Online RLHF/DPO Alignment",
+      "url": "https://arxiv.org/abs/2510.05526",
+      "year": 2025,
+      "venue": "arXiv preprint arXiv:2510.05526",
+      "problem": "Aligning LLMs with RLHF/DPO while simultaneously handling corrupted preferences, reward overoptimization and verbosity bias, with provable generalization guarantees.",
+      "methods": [
+        "RLHF-COV",
+        "DPO-COV (reward-estimation-free)",
+        "length regularization",
+        "robust preference learning under corrupted data",
+        "generalization error analysis",
+        "offline and online preference optimization"
+      ],
+      "terms": [
+        "RLHF",
+        "direct preference optimization",
+        "LLM alignment",
+        "reward overoptimization",
+        "corrupted preferences",
+        "verbosity bias",
+        "length regularization",
+        "generalization error rate"
+      ],
+      "platform": "LLM preference-alignment experiments, offline and online; compute not stated in the abstract",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:Se3iqnhoufwC",
+      "fetched": true
+    },
+    {
+      "id": "P6",
+      "title": "Zeroth-Order Methods for Stochastic Nonconvex Nonsmooth Composite Optimization",
+      "url": "https://arxiv.org/abs/2510.04446",
+      "year": 2025,
+      "venue": "arXiv preprint arXiv:2510.04446",
+      "problem": "Solving stochastic nonconvex composite problems whose main part satisfies no Lipschitz or relaxed smoothness condition (e.g., regularized ReLU networks).",
+      "methods": [
+        "zeroth-order stochastic algorithms",
+        "new approximate stationarity notions for nonsmooth composite problems",
+        "finite-time convergence analysis",
+        "composite optimization"
+      ],
+      "terms": [
+        "zeroth-order optimization",
+        "nonsmooth nonconvex optimization",
+        "composite optimization",
+        "stochastic optimization",
+        "approximate stationary point",
+        "regularized ReLU network",
+        "sparse support matrix machine"
+      ],
+      "platform": "Numerical experiments; compute not stated in the abstract",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:roLk4NBRz8UC",
+      "fetched": true
+    },
+    {
+      "id": "P7",
+      "title": "Revisiting Convergence: Shuffling Complexity Beyond Lipschitz Smoothness",
+      "url": "https://arxiv.org/abs/2507.08913",
+      "year": 2025,
+      "venue": "Forty-second International Conference on Machine Learning (ICML) 2025",
+      "problem": "Establishing convergence rates of shuffling-type gradient methods without assuming Lipschitz smoothness.",
+      "methods": [
+        "random reshuffling",
+        "arbitrary shuffling schemes",
+        "stepsize strategy for non-Lipschitz-smooth objectives",
+        "nonconvex / strongly convex / convex convergence analysis"
+      ],
+      "terms": [
+        "shuffling-type gradient methods",
+        "random reshuffling",
+        "SGD without replacement",
+        "generalized smoothness",
+        "non-uniform smoothness",
+        "Lipschitz smoothness",
+        "bounded variance",
+        "convergence rate"
+      ],
+      "platform": "Numerical experiments on non-Lipschitz-smooth ML problems; compute not stated in the abstract",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:_FxGoFyzp5QC",
+      "fetched": true
+    },
+    {
+      "id": "P8",
+      "title": "Efficient fine-tuning and concept suppression for pruned diffusion models",
+      "url": "https://arxiv.org/abs/2412.15341",
+      "year": 2025,
+      "venue": "2025 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)",
+      "problem": "Fine-tuning pruned diffusion models by distillation without propagating undesirable behaviours such as copyrighted content and unsafe concepts.",
+      "methods": [
+        "bilevel optimization unifying fine-tuning and unlearning",
+        "knowledge distillation",
+        "model pruning",
+        "concept unlearning / suppression"
+      ],
+      "terms": [
+        "diffusion models",
+        "model pruning",
+        "concept erasure",
+        "machine unlearning",
+        "knowledge distillation",
+        "copyrighted content",
+        "unsafe concepts",
+        "bilevel optimization"
+      ],
+      "platform": "Pruned diffusion models; GPU",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:YsMSGLbcyi4C",
+      "fetched": true,
+      "fetched_via": "arXiv API (export.arxiv.org), exact title match"
+    },
+    {
+      "id": "P9",
+      "title": "Convergence analysis for a variant of manifold proximal point algorithm based on Kurdyka-Łojasiewicz property",
+      "url": "https://arxiv.org/abs/2502.06183",
+      "year": 2025,
+      "venue": "Pacific Journal of Optimization",
+      "problem": "Finding sparse nonzero vectors in a subspace with an iteratively reweighted ManPPA variant and proving whole-sequence convergence under the KL property.",
+      "methods": [
+        "manifold proximal point algorithm (ManPPA)",
+        "iteratively reweighted strategy",
+        "Kurdyka-Łojasiewicz convergence analysis",
+        "KL exponent relations between potential functions"
+      ],
+      "terms": [
+        "manifold optimization",
+        "manifold proximal point algorithm",
+        "sparse vector in a subspace",
+        "sparsity-inducing penalty",
+        "Kurdyka-Lojasiewicz property",
+        "KL exponent",
+        "linear convergence",
+        "weak sharp minima"
+      ],
+      "platform": "Theoretical analysis; compute not stated in the abstract",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:eQOLeE2rZwMC",
+      "fetched": true,
+      "fetched_via": "arXiv API (export.arxiv.org), exact title match"
+    },
+    {
+      "id": "P10",
+      "title": "Dropout enhanced bilevel training",
+      "url": "https://openreview.net/forum?id=06lrITXVAx",
+      "year": 2024,
+      "venue": "International Conference on Learning Representations (ICLR) 2024",
+      "problem": "Reducing overfitting in bilevel training on small datasets by making the outer problem depend on the distribution of dropout masks.",
+      "methods": [
+        "dropout bilevel model",
+        "stochastic bilevel optimization method",
+        "hypergradient analysis under dropout",
+        "complexity analysis to an epsilon-stationary point"
+      ],
+      "terms": [
+        "bilevel optimization",
+        "bilevel training",
+        "dropout",
+        "dropout rate",
+        "overfitting",
+        "hypergradient",
+        "stochastic bilevel optimization",
+        "stationary point complexity"
+      ],
+      "platform": "Not stated in the snippets read",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:zYLM7Y9cAGgC",
+      "fetched": false
+    },
+    {
+      "id": "P11",
+      "title": "Hessian Free Efficient Single Loop Iterative Differentiation Methods for Bi-Level Optimization Problems",
+      "url": "https://openreview.net/forum?id=X59U5CHnfr",
+      "year": 2024,
+      "venue": "Transactions on Machine Learning Research",
+      "problem": "Cutting the cost of iterative-differentiation hypergradients for bilevel problems with single-loop, Hessian-free methods that need fewer backpropagations.",
+      "methods": [
+        "single-loop iterative differentiation (ES-ITDM)",
+        "Hessian-free hypergradient estimation",
+        "Gaussian smoothing for stochastic Hessian approximation",
+        "Kurdyka-Łojasiewicz convergence-rate analysis"
+      ],
+      "terms": [
+        "bilevel optimization",
+        "iterative differentiation",
+        "Hessian-free",
+        "single-loop algorithm",
+        "hypergradient",
+        "Gaussian smoothing",
+        "Kurdyka-Lojasiewicz property",
+        "stochastic bilevel optimization"
+      ],
+      "platform": "Not stated in the snippets read",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:Tyk-4Ss8FVUC",
+      "fetched": false
+    },
+    {
+      "id": "P18",
+      "title": "Mitigating Data Heterogeneity Effect in Client-Reshuffling-Based Federated Learning",
+      "url": "https://openreview.net/forum?id=QJYmhiRKU3",
+      "year": 2025,
+      "year_source": "WebSearch: OpenReview forum QJYmhiRKU3, listed as an ICLR 2026 submission (submitted 2025)",
+      "venue": "ICLR 2026 submission (OpenReview)",
+      "problem": "Removing the dependence of convergence on data heterogeneity in client-reshuffling-based federated learning.",
+      "methods": [
+        "FedCDR",
+        "client reshuffling",
+        "heterogeneity-independent convergence analysis"
+      ],
+      "terms": [
+        "federated learning",
+        "client reshuffling",
+        "data heterogeneity",
+        "non-IID data",
+        "convergence rate",
+        "approximate stationary point"
+      ],
+      "platform": "Not stated in the snippets read",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:5nxA0vEk-isC",
+      "fetched": false
+    },
+    {
+      "id": "P19",
+      "title": "Revisiting Convergence: A Study on Shuffling-Type Gradient Methods",
+      "url": "https://openreview.net/forum?id=2ev44Srmt9",
+      "year": 2024,
+      "year_source": "WebSearch: OpenReview forum 2ev44Srmt9, listed as an ICLR 2025 submission (submitted 2024); earlier version of P7",
+      "venue": "ICLR 2025 submission (OpenReview)",
+      "problem": "Establishing convergence rates of shuffling-type gradient methods without assuming Lipschitz smoothness (earlier version of P7).",
+      "methods": [
+        "random reshuffling",
+        "arbitrary shuffling schemes",
+        "stepsize strategy for non-Lipschitz-smooth objectives",
+        "nonconvex / strongly convex / convex convergence analysis"
+      ],
+      "terms": [
+        "shuffling-type gradient methods",
+        "random reshuffling",
+        "Lipschitz smoothness",
+        "generalized smoothness",
+        "bounded variance",
+        "convergence rate"
+      ],
+      "platform": "Not stated in the snippets read",
+      "assets": [],
+      "scholar_url": "https://scholar.google.com/citations?view_op=view_citation&hl=en&user=SXJ4R24AAAAJ&pagesize=100&sortby=pubdate&citation_for_view=SXJ4R24AAAAJ:ufrVoPGSRksC",
+      "fetched": false
+    }
+  ],
+  "older_papers": [
+    {
+      "id": "P12",
+      "title": "Calculus of Kurdyka-Lojasiewicz exponents and its applications in the analysis of first-order methods",
+      "year": 2021,
+      "venue": "Hong Kong Polytechnic University"
+    },
+    {
+      "id": "P13",
+      "title": "Convergence rate analysis of a sequential convex programming method with line search for a class of constrained difference-of-convex optimization problems",
+      "year": 2021,
+      "venue": "SIAM Journal on Optimization 31 (3), 2024-2054"
+    },
+    {
+      "id": "P14",
+      "title": "Kurdyka-Lojasiewicz exponent via inf-projection",
+      "year": 2021,
+      "venue": "Foundations of Computational Mathematics 22, 1171-1217"
+    },
+    {
+      "id": "P15",
+      "title": "Analysis and algorithms for some compressed sensing models based on L1/L2 minimization",
+      "year": 2021,
+      "venue": "SIAM Journal on Optimization 31 (2), 1576-1603"
+    },
+    {
+      "id": "P16",
+      "title": "Iteratively reweighted ℓ1 algorithms with extrapolation",
+      "year": 2019,
+      "venue": "Computational Optimization and Applications 73 (2), 353-386"
+    },
+    {
+      "id": "P17",
+      "title": "Adaptation of extrapolation techniques in the proximal gradient algorithm and an iteratively reweighted l₁ algorithm",
+      "year": 2018,
+      "venue": "Hong Kong Polytechnic University"
+    },
+    {
+      "id": "P20",
+      "title": "Hybrid Fine-Tuning of LLMs: Theoretical Insights on Generalized Smoothness and Convergence",
+      "year": null,
+      "venue": "unknown (year not found; possibly an earlier title of P4, unconfirmed)"
+    },
+    {
+      "id": "P21",
+      "title": "A Fast Federated Method for Minimax Problems with Sequential Convergence Guarantees",
+      "year": null,
+      "venue": "OpenReview (forum s2SLzC0IPZ; year and venue not found)"
+    }
+  ],
+  "expertise": {
+    "core": [
+      "bilevel optimization (stochastic, federated, Hessian-free single-loop ITD, dropout-regularised) [P1, P2, P8, P10, P11]",
+      "zeroth-order optimization (nonsmooth composite, LLM fine-tuning, Gaussian smoothing) [P2, P4, P6, P11]",
+      "convergence analysis beyond Lipschitz smoothness: generalized smoothness, shuffling / random-reshuffling SGD [P4, P7, P19]",
+      "Kurdyka-Łojasiewicz-based sequence convergence analysis [P9, P11]",
+      "federated optimization under data heterogeneity [P1, P18]",
+      "efficient LLM fine-tuning combining PEFT and zeroth-order updates [P2, P4]"
+    ],
+    "secondary": [
+      "LLM alignment: robust RLHF/DPO against corruption, overoptimization and verbosity [P5]",
+      "cost-aware LLM routing / model selection with contrastive embeddings [P3]",
+      "pruned diffusion models: distillation and concept unlearning [P8]",
+      "manifold optimization for sparse vector recovery (ManPPA) [P9]",
+      "older foundation: KL exponent calculus and inf-projection [P12, P14]",
+      "older foundation: difference-of-convex / sequential convex programming [P13]",
+      "older foundation: sparse recovery, L1/L2 compressed sensing, iteratively reweighted l1 and extrapolated proximal gradient [P15, P16, P17]",
+      "federated minimax optimization (older/undated) [P21]"
+    ],
+    "assets": [
+      "AI-for-Control repo (this repository): tumor_problem.py, train_paper_pmp_kkt.py, scripts/ - Transformer optimal-control policies trained with PMP/KKT residuals (paths verified; not tied to any Scholar paper)"
+    ]
+  }
+}
